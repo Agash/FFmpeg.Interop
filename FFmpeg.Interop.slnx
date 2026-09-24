@@ -1,0 +1,11 @@
+<Solution>
+    <Folder Name="/samples/">
+        <Project Path="samples/FFmpeg.Interop.Smoke/FFmpeg.Interop.Smoke.csproj" />
+    </Folder>
+    <Folder Name="/src/">
+        <Project Path="src/FFmpeg.Interop/FFmpeg.Interop.csproj" />
+    </Folder>
+    <Folder Name="/tests/">
+        <Project Path="tests/FFmpeg.Interop.Tests/FFmpeg.Interop.Tests.csproj" />
+    </Folder>
+</Solution>

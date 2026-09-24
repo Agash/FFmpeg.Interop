@@ -1,0 +1,31 @@
+## .NET
+bin/
+obj/
+*.user
+.vs/
+artifacts/
+
+## NuGet
+*.nupkg
+*.snupkg
+
+# VS/Rider per-user launch profiles
+**/Properties/launchSettings.json
+
+## Bundled native assets (FFmpeg builds), fetched per platform - not committed
+/native/
+
+# Local clones of sibling libs for development (never committed)
+external/
+
+# Local working copies and scratch (never committed)
+.refs/
+_ref/
+.matrix-logs/
+*.log
+
+# Test run output (coverage reports)
+TestResults/
+
+# Generator downloads and scratch (pinned by generate/inputs.json)
+generate/.cache/
