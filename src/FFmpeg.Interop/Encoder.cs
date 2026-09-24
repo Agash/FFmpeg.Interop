@@ -1,0 +1,312 @@
+using FFmpeg.Interop.Native;
+using static FFmpeg.Interop.Native.LibAVCodec;
+
+namespace FFmpeg.Interop;
+
+/// <summary>Options shared by video and audio encoders.</summary>
+public abstract record EncoderOptions
+{
+    /// <summary>The target bit rate in bits per second, or null for the codec's default rate control.</summary>
+    public long? BitRate { get; init; }
+
+    /// <summary>Encoding threads; 0 lets FFmpeg choose.</summary>
+    public int ThreadCount { get; init; }
+
+    /// <summary>
+    /// Put codec setup data in <see cref="CodecContext.ExtraData"/> instead of in band, as containers
+    /// such as MP4 and Matroska want (<see cref="MediaWriter.RequiresGlobalHeader"/>).
+    /// </summary>
+    public bool GlobalHeader { get; init; }
+
+    /// <summary>Codec-private options, as <c>ffmpeg -c:v name -option value</c> takes them. Unknown names are an error.</summary>
+    public IReadOnlyDictionary<string, string>? CodecOptions { get; init; }
+}
+
+/// <summary>Options for a video <see cref="Encoder"/>.</summary>
+public sealed record VideoEncoderOptions : EncoderOptions
+{
+    /// <summary>The picture width.</summary>
+    public required int Width { get; init; }
+
+    /// <summary>The picture height.</summary>
+    public required int Height { get; init; }
+
+    /// <summary>
+    /// The input pixel format; for a hardware encoder the hardware format, with
+    /// <see cref="HardwareFrames"/> set.
+    /// </summary>
+    public required PixelFormat PixelFormat { get; init; }
+
+    /// <summary>The time base of the input frames' timestamps, typically 1/frame rate or 1/90000.</summary>
+    public required Rational TimeBase { get; init; }
+
+    /// <summary>The nominal frame rate, which rate control uses; null when variable.</summary>
+    public Rational? FrameRate { get; init; }
+
+    /// <summary>Frames between key frames, or null for the codec's default.</summary>
+    public int? GopSize { get; init; }
+
+    /// <summary>The maximum number of consecutive B-frames; 0 for low-latency streaming.</summary>
+    public int? MaxBFrames { get; init; }
+
+    /// <summary>The pool the input surfaces come from, for encoders that take hardware frames.</summary>
+    public HardwareFramePool? HardwareFrames { get; init; }
+
+    /// <summary>The device, for hardware encoders that take a device rather than frames.</summary>
+    public HardwareDevice? HardwareDevice { get; init; }
+}
+
+/// <summary>Options for an audio <see cref="Encoder"/>.</summary>
+public sealed record AudioEncoderOptions : EncoderOptions
+{
+    /// <summary>The sample rate.</summary>
+    public required int SampleRate { get; init; }
+
+    /// <summary>The input sample format; see <see cref="Codec.SampleFormats"/>.</summary>
+    public required SampleFormat SampleFormat { get; init; }
+
+    /// <summary>The channel layout.</summary>
+    public required ChannelLayout ChannelLayout { get; init; }
+
+    /// <summary>The time base of the input timestamps; null for 1/<see cref="SampleRate"/>.</summary>
+    public Rational? TimeBase { get; init; }
+}
+
+/// <summary>Turns frames into packets.</summary>
+public sealed unsafe class Encoder : CodecContext
+{
+    private Encoder(Codec codec)
+        : base(codec) { }
+
+    /// <summary>
+    /// The number of samples per channel every audio frame but the last must have, or 0 when the
+    /// encoder accepts any.
+    /// </summary>
+    public int FrameSize => NativePointer->frame_size;
+
+    /// <summary>Opens a video encoder.</summary>
+    /// <param name="codec">A video encoder implementation.</param>
+    /// <param name="options">The options.</param>
+    /// <returns>The encoder.</returns>
+    public static Encoder Create(Codec codec, VideoEncoderOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return Create(
+            codec,
+            MediaType.Video,
+            options,
+            context =>
+            {
+                context->width = options.Width;
+                context->height = options.Height;
+                context->pix_fmt = options.PixelFormat;
+                context->time_base = options.TimeBase;
+                if (options.FrameRate is { } rate)
+                {
+                    context->framerate = rate;
+                }
+
+                if (options.GopSize is { } gop)
+                {
+                    context->gop_size = gop;
+                }
+
+                if (options.MaxBFrames is { } bFrames)
+                {
+                    context->max_b_frames = bFrames;
+                }
+
+                if (options.HardwareFrames is { } pool)
+                {
+                    context->hw_frames_ctx = pool.NewReference();
+                }
+
+                if (options.HardwareDevice is { } device)
+                {
+                    context->hw_device_ctx = device.NewReference();
+                }
+            }
+        );
+    }
+
+    /// <summary>Opens an audio encoder.</summary>
+    /// <param name="codec">An audio encoder implementation.</param>
+    /// <param name="options">The options.</param>
+    /// <returns>The encoder.</returns>
+    public static Encoder Create(Codec codec, AudioEncoderOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return Create(
+            codec,
+            MediaType.Audio,
+            options,
+            context =>
+            {
+                context->sample_rate = options.SampleRate;
+                context->sample_fmt = options.SampleFormat;
+                LibAVUtil.av_channel_layout_uninit(&context->ch_layout);
+                context->ch_layout = options.ChannelLayout.ToNative();
+                context->time_base = options.TimeBase ?? new Rational(1, options.SampleRate);
+            }
+        );
+    }
+
+    /// <summary>Sends a frame to encode.</summary>
+    /// <param name="frame">The frame, with a timestamp in the encoder's <see cref="CodecContext.TimeBase"/>.</param>
+    /// <returns>
+    /// False when the encoder will not take input until its output is received: call
+    /// <see cref="Receive"/> until it returns <see cref="CodecStatus.NeedsInput"/>, then send again.
+    /// </returns>
+    public bool TrySend(Frame frame)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        return Send(frame.NativePointer);
+    }
+
+    /// <summary>Signals end of stream, so the encoder outputs the packets it still holds.</summary>
+    public void SendEndOfStream() => _ = Send(null);
+
+    /// <summary>Receives the next encoded packet, if there is one.</summary>
+    /// <param name="packet">The packet to fill; its previous content is released.</param>
+    /// <returns>Whether a packet was produced, more input is needed, or the stream is finished.</returns>
+    public CodecStatus Receive(Packet packet)
+    {
+        ArgumentNullException.ThrowIfNull(packet);
+        AVCodecContext* context = NativePointer;
+        CodecStatus status = Status(
+            avcodec_receive_packet(context, packet.NativePointer),
+            "avcodec_receive_packet"
+        );
+        if (status == CodecStatus.Available)
+        {
+            packet.NativePointer->time_base = context->time_base;
+        }
+
+        return status;
+    }
+
+    /// <summary>
+    /// Sends a frame and enumerates the packets that become available, reusing <paramref name="packet"/>
+    /// for each. Pass null at end of stream to drain the remaining packets.
+    /// </summary>
+    /// <param name="frame">The frame, or null for end of stream.</param>
+    /// <param name="packet">The packet each result is written into; valid until the next iteration.</param>
+    /// <returns>An allocation-free enumerable of the encoded packets.</returns>
+    public EncodeEnumerable Encode(Frame? frame, Packet packet)
+    {
+        ArgumentNullException.ThrowIfNull(packet);
+        return new(this, frame, packet);
+    }
+
+    private static Encoder Create(
+        Codec codec,
+        MediaType type,
+        EncoderOptions options,
+        ConfigureContext configure
+    )
+    {
+        if (!codec.IsEncoder || codec.MediaType != type)
+        {
+            throw new ArgumentException(
+                $"{codec} is not a {type.ToString().ToLowerInvariant()} encoder.",
+                nameof(codec)
+            );
+        }
+
+        Encoder encoder = new(codec);
+        try
+        {
+            AVCodecContext* context = encoder.NativePointer;
+            configure(context);
+            context->thread_count = options.ThreadCount;
+            if (options.BitRate is { } bitRate)
+            {
+                context->bit_rate = bitRate;
+            }
+
+            if (options.GlobalHeader)
+            {
+                context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+            }
+
+            encoder.Open(options.CodecOptions);
+            return encoder;
+        }
+        catch
+        {
+            encoder.Dispose();
+            throw;
+        }
+    }
+
+    private bool Send(AVFrame* frame)
+    {
+        int result = avcodec_send_frame(NativePointer, frame);
+        if (result == LibAVUtil.AVERROR_EAGAIN)
+        {
+            return false;
+        }
+
+        if (frame is null && result == LibAVUtil.AVERROR_EOF)
+        {
+            return true;
+        }
+
+        FFmpegError.ThrowIfError(result, "avcodec_send_frame");
+        return true;
+    }
+
+    private delegate void ConfigureContext(AVCodecContext* context);
+
+    /// <summary>The packets produced by one <see cref="Encode"/> call.</summary>
+    public ref struct EncodeEnumerable
+    {
+        private readonly Encoder _encoder;
+        private readonly Frame? _frame;
+        private readonly Packet _packet;
+        private bool _sent;
+
+        internal EncodeEnumerable(Encoder encoder, Frame? frame, Packet packet)
+        {
+            _encoder = encoder;
+            _frame = frame;
+            _packet = packet;
+        }
+
+        /// <summary>The current packet.</summary>
+        public readonly Packet Current => _packet;
+
+        /// <summary>Returns this instance; the enumerable is its own enumerator.</summary>
+        /// <returns>The enumerator.</returns>
+        public readonly EncodeEnumerable GetEnumerator() => this;
+
+        /// <summary>Advances to the next packet.</summary>
+        /// <returns>Whether a packet is available.</returns>
+        public bool MoveNext()
+        {
+            while (true)
+            {
+                if (!_sent)
+                {
+                    _sent = _frame is null
+                        ? _encoder.Send(null)
+                        : _encoder.Send(_frame.NativePointer);
+                }
+
+                switch (_encoder.Receive(_packet))
+                {
+                    case CodecStatus.Available:
+                        return true;
+                    case CodecStatus.EndOfStream:
+                        return false;
+                    case CodecStatus.NeedsInput when _sent:
+                        return false;
+                    default:
+                        throw new InvalidOperationException(
+                            "The encoder neither accepted input nor produced output."
+                        );
+                }
+            }
+        }
+    }
+}
