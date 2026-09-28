@@ -161,25 +161,59 @@ public static class FFmpegLibraries
     {
         string file = FileName(name, major);
         nint handle = 0;
+        DllNotFoundException? refused = null;
         foreach (string directory in directories)
         {
-            if (NativeLibrary.TryLoad(Path.Combine(directory, file), out handle))
+            string path = Path.Combine(directory, file);
+            if (NativeLibrary.TryLoad(path, out handle))
             {
                 break;
+            }
+
+            // A library that is present but will not load (a dependency of it is missing, or it is built
+            // for another architecture) is a different fault from one that is absent; keep the OS
+            // loader's own reason, which names what it could not resolve.
+            if (refused is null && File.Exists(path))
+            {
+                refused = LoadError(path);
             }
         }
 
         if (handle == 0 && !NativeLibrary.TryLoad(file, out handle))
         {
-            throw new DllNotFoundException(
-                $"FFmpeg library '{file}' was not found. Set FFmpegLibraries.SearchDirectory, or place it in "
-                    + $"runtimes/{RuntimeInformation.RuntimeIdentifier}/native, the application directory, or on the "
-                    + "OS library search path."
-            );
+            throw refused is not null
+                ? new DllNotFoundException(
+                    $"FFmpeg library '{file}' was found but could not be loaded: {refused.Message}",
+                    refused
+                )
+                : new DllNotFoundException(
+                    $"FFmpeg library '{file}' was not found. Set FFmpegLibraries.SearchDirectory, or place it in "
+                        + $"runtimes/{RuntimeInformation.RuntimeIdentifier}/native, the application directory, or on the "
+                        + "OS library search path."
+                );
         }
 
         VerifyMajor(name, major, handle, file);
         return handle;
+    }
+
+    // NativeLibrary.Load throws with the loader's message (dlerror, or the Windows error) where TryLoad
+    // only returns false.
+    private static DllNotFoundException? LoadError(string path)
+    {
+        try
+        {
+            NativeLibrary.Free(NativeLibrary.Load(path));
+            return null;
+        }
+        catch (DllNotFoundException error)
+        {
+            return error;
+        }
+        catch (BadImageFormatException error)
+        {
+            return new DllNotFoundException(error.Message, error);
+        }
     }
 
     internal static IEnumerable<string> ProbeDirectories(string? configured, string baseDirectory)

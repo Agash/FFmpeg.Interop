@@ -76,6 +76,27 @@ public sealed class LibraryLoadingTests
         Assert.Contains(FFmpegLibraries.FileName("notffmpeg", 1), error.Message);
     }
 
+    // Present but unloadable (a missing dependency, another architecture) is a different fault from
+    // absent, and the error must say which, with the OS loader's reason.
+    [TestMethod]
+    public void LoadFrom_FileThatWillNotLoad_ReportsTheLoadersReason()
+    {
+        using Scratch scratch = new();
+        string directory = scratch["libs"];
+        _ = Directory.CreateDirectory(directory);
+        File.WriteAllBytes(
+            Path.Combine(directory, FFmpegLibraries.FileName("notffmpeg", 1)),
+            [0x4E, 0x6F, 0x74, 0x20, 0x61, 0x20, 0x6C, 0x69, 0x62]
+        );
+
+        DllNotFoundException error = Assert.ThrowsExactly<DllNotFoundException>(() =>
+            FFmpegLibraries.LoadFrom("notffmpeg", 1, [directory])
+        );
+
+        Assert.Contains("could not be loaded", error.Message);
+        Assert.IsNotNull(error.InnerException);
+    }
+
     [TestMethod]
     public void LoadFrom_FetchedBuild_LoadsFromTheFirstDirectoryThatHasIt()
     {
