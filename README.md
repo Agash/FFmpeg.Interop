@@ -58,7 +58,7 @@ copy. `HardwareFramePool.Of(frame)` lets an encoder take a hardware decoder's su
 ## Building
 
 ```bash
-dotnet tool restore
+dotnet tool restore --disable-parallel
 ./eng/fetch-ffmpeg.ps1          # pinned FFmpeg 9 build for this machine into native/<rid>
 dotnet build FFmpeg.Interop.slnx
 dotnet test --solution FFmpeg.Interop.slnx --filter "TestCategory!=RequiresGpu"

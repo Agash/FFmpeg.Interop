@@ -8,7 +8,7 @@ starting anything large, so we can agree on the shape before you spend time on i
 You need the .NET SDK pinned in [`global.json`](global.json) and PowerShell 7.
 
 ```bash
-dotnet tool restore
+dotnet tool restore --disable-parallel
 ./eng/fetch-ffmpeg.ps1
 dotnet build FFmpeg.Interop.slnx
 dotnet test --solution FFmpeg.Interop.slnx --filter "TestCategory!=RequiresGpu"
