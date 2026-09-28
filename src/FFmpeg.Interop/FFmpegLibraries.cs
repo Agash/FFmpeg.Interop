@@ -40,6 +40,22 @@ public static class FFmpegLibraries
         ("swresample", LibSwResample.LIBSWRESAMPLE_VERSION_MAJOR),
     ];
 
+    // Every FFmpeg library, in link order: each depends only on libraries before it. On Linux a library
+    // loaded by path finds its dependencies only on the loader's search path or through its RUNPATH,
+    // which many builds (BtbN's among them) do not set; glibc does, however, satisfy a dependency with an
+    // already loaded library of the same soname. Loading in this order is what lets a private directory
+    // of FFmpeg libraries work without LD_LIBRARY_PATH. libavfilter is not bound, but libavdevice links it.
+    private static readonly (string Name, int Major)[] s_linkOrder =
+    [
+        ("avutil", LibAVUtil.LIBAVUTIL_VERSION_MAJOR),
+        ("swresample", LibSwResample.LIBSWRESAMPLE_VERSION_MAJOR),
+        ("swscale", LibSwScale.LIBSWSCALE_VERSION_MAJOR),
+        ("avcodec", LibAVCodec.LIBAVCODEC_VERSION_MAJOR),
+        ("avformat", LibAVFormat.LIBAVFORMAT_VERSION_MAJOR),
+        ("avfilter", LibAVFilter.LIBAVFILTER_VERSION_MAJOR),
+        ("avdevice", LibAVDevice.LIBAVDEVICE_VERSION_MAJOR),
+    ];
+
     /// <summary>
     /// A directory to load the libraries from before the default probe. Set it before the first call
     /// into FFmpeg; changing it after a library has loaded throws.
@@ -143,14 +159,42 @@ public static class FFmpegLibraries
                 return cached;
             }
 
-            int major = Libraries.First(l => l.Name == name).Major;
-            nint handle = LoadFrom(
-                name,
-                major,
-                ProbeDirectories(s_searchDirectory, AppContext.BaseDirectory)
-            );
-            s_handles[name] = handle;
-            return handle;
+            foreach ((string library, int major) in s_linkOrder)
+            {
+                if (s_handles.ContainsKey(library))
+                {
+                    if (library == name)
+                    {
+                        break;
+                    }
+
+                    continue;
+                }
+
+                if (library != name && !Libraries.Any(l => l.Name == library))
+                {
+                    // A prerequisite the bindings do not import (libavfilter): a build without it is valid,
+                    // and a library that does need it fails below with the loader's own reason.
+                    if (TryLoadFrom(library, major, out nint prerequisite))
+                    {
+                        s_handles[library] = prerequisite;
+                    }
+
+                    continue;
+                }
+
+                s_handles[library] = LoadFrom(
+                    library,
+                    major,
+                    ProbeDirectories(s_searchDirectory, AppContext.BaseDirectory)
+                );
+                if (library == name)
+                {
+                    break;
+                }
+            }
+
+            return s_handles[name];
         }
     }
 
@@ -195,6 +239,26 @@ public static class FFmpegLibraries
 
         VerifyMajor(name, major, handle, file);
         return handle;
+    }
+
+    private static bool TryLoadFrom(string name, int major, out nint handle)
+    {
+        try
+        {
+            handle = LoadFrom(
+                name,
+                major,
+                ProbeDirectories(s_searchDirectory, AppContext.BaseDirectory)
+            );
+            return true;
+        }
+        catch (DllNotFoundException)
+        {
+            // Deliberately not logged: FFmpeg's logging is not set up while its libraries load, and the
+            // absence surfaces as the dependent library's own load failure, which carries the reason.
+            handle = 0;
+            return false;
+        }
     }
 
     // NativeLibrary.Load throws with the loader's message (dlerror, or the Windows error) where TryLoad
