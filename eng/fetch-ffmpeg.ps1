@@ -55,7 +55,9 @@ if ($actual -ne $sha256) {
     throw "SHA-256 mismatch for ${file}: expected $sha256, got $actual."
 }
 
-$extract = Join-Path ([IO.Path]::GetTempPath()) "ffmpeg-$Rid-extract"
+# Extracted beside the destination, not in the temp directory: /tmp is often another filesystem, and
+# moving a directory across filesystems copies it, which fails on the archive's .so symlinks.
+$extract = Join-Path $root "native/.extract-$Rid"
 Remove-Item $extract -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $extract | Out-Null
 if ($file.EndsWith('.zip')) {
