@@ -31,11 +31,16 @@ well against the source with the `psnr` filter.
   `RequiresVideoToolbox` (macOS). Run `./eng/test-machine.ps1`, which picks the suites for the GPUs
   present. A suite that is picked fails when its device does not open; it does not skip.
 
-Coverage is measured on the hand-written code; the generated bindings are excluded. The floor is 90%
-of lines and 80% of branches over CI's legs merged. The hardware paths only run on GPU machines, so
-a change to them comes with a `test-machine.ps1` run on the hardware it touches. Its report merges
-with CI's through `./eng/merge-coverage.ps1`, which normalises each machine's source paths so the
-platforms combine instead of being counted side by side.
+Coverage is measured on the hand-written code; the generated bindings are excluded. The target is 90%
+of lines and 80% of branches over everything that runs: CI's legs merged with the GPU machines'
+reports from `./eng/test-machine.ps1`, combined by `./eng/merge-coverage.ps1` (which normalises each
+machine's source paths, so the platforms combine instead of being counted side by side). CI alone
+cannot run the GPU paths, so it gates its own merged legs at 85% / 80%; a change to a GPU path comes
+with a `test-machine.ps1` run on the hardware it touches.
+
+`TestCategory("RequiresHardwareDecoder")` marks the bit-exact hardware decode comparisons. Every GPU
+machine runs them; CI's macOS runner does not, because its virtualized VideoToolbox decoder does not
+reproduce Apple's hardware decoder bit for bit.
 
 Name tests `{Method}_{Scenario}_{ExpectedResult}`. No `Thread.Sleep`. New behaviour needs a test, and
 a bug fix needs a test that fails before the fix.
