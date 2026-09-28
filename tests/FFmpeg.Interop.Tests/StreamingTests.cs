@@ -16,6 +16,7 @@ public sealed class StreamingTests
 
     // A receiver that lost a packet asks for a key frame (RTCP PLI); the sender answers by marking the
     // next frame intra. With a long GOP, only the forced frames may be key frames.
+    // The receiver's side is checked too: decoding the stream reports the picture types it was sent.
     [TestMethod]
     public void PictureTypeI_ForcesAKeyFrameWhereAsked()
     {
@@ -33,9 +34,26 @@ public sealed class StreamingTests
                 LowDelay = true,
             }
         );
+        using Decoder decoder = Decoder.Create(Codec.FindDecoder(CodecId.H264));
         using Frame frame = new();
+        using Frame decoded = new();
         using Packet packet = new();
         HashSet<long> keyFrames = [];
+        Dictionary<long, PictureType> decodedTypes = [];
+
+        void Received(Packet encoded)
+        {
+            if (encoded.IsKeyFrame)
+            {
+                _ = keyFrames.Add(encoded.PresentationTimestamp!.Value);
+            }
+
+            foreach (Frame picture in decoder.Decode(encoded, decoded))
+            {
+                decodedTypes[picture.PresentationTimestamp!.Value] = picture.PictureType;
+            }
+        }
+
         for (int i = 0; i < 12; i++)
         {
             frame.AllocateVideo(64, 64, PixelFormat.Yuv420P);
@@ -44,22 +62,30 @@ public sealed class StreamingTests
             frame.PictureType = i is 5 or 9 ? PictureType.I : PictureType.None;
             foreach (Packet encoded in encoder.Encode(frame, packet))
             {
-                if (encoded.IsKeyFrame)
-                {
-                    _ = keyFrames.Add(encoded.PresentationTimestamp!.Value);
-                }
+                Received(encoded);
             }
         }
 
         foreach (Packet encoded in encoder.Encode(null, packet))
         {
-            if (encoded.IsKeyFrame)
-            {
-                _ = keyFrames.Add(encoded.PresentationTimestamp!.Value);
-            }
+            Received(encoded);
+        }
+
+        foreach (Frame picture in decoder.Decode(null, decoded))
+        {
+            decodedTypes[picture.PresentationTimestamp!.Value] = picture.PictureType;
         }
 
         CollectionAssert.AreEquivalent(new long[] { 0, 5, 9 }, keyFrames.ToArray());
+        Assert.HasCount(12, decodedTypes);
+        foreach ((long timestamp, PictureType type) in decodedTypes)
+        {
+            Assert.AreEqual(
+                timestamp is 0 or 5 or 9 ? PictureType.I : PictureType.P,
+                type,
+                $"Frame {timestamp}"
+            );
+        }
     }
 
     [TestMethod]
@@ -297,12 +323,73 @@ public sealed class StreamingTests
             "The stream line arrives whole: "
                 + string.Join(" | ", factory.Entries.Select(e => e.Message))
         );
-        (string Category, LogLevel Level, string? Component, string Message) decoderError =
-            factory.Entries.First(e =>
-                e.Category == "FFmpeg.AVCodecContext" && e.Level >= LogLevel.Warning
-            );
+        (
+            string Category,
+            LogLevel Level,
+            string? Component,
+            string Message,
+            string Formatted
+        ) decoderError = factory.Entries.First(e =>
+            e.Category == "FFmpeg.AVCodecContext" && e.Level >= LogLevel.Warning
+        );
         Assert.AreEqual("h264", decoderError.Component);
         Assert.IsFalse(decoderError.Message.EndsWith('\n'));
+        Assert.AreEqual($"h264: {decoderError.Message}", decoderError.Formatted);
+    }
+
+    [TestMethod]
+    public void Logging_ADisabledLevel_IsNotFormattedOrLogged()
+    {
+        CapturingLoggerFactory factory = new() { Enabled = false };
+        FFmpegLogLevel previous = FFmpegLogging.Level;
+        try
+        {
+            FFmpegLogging.UseLoggerFactory(factory);
+            FFmpegLogging.Level = FFmpegLogLevel.Info;
+            using Decoder decoder = Decoder.Create(Codec.FindDecoder(CodecId.H264));
+            using Packet packet = new();
+            packet.CopyFrom([0, 0, 0, 1, 0x65, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+            _ = decoder.TrySend(packet);
+        }
+        finally
+        {
+            FFmpegLogging.UseLoggerFactory(null);
+            FFmpegLogging.Level = previous;
+        }
+
+        Assert.IsEmpty(factory.Entries);
+    }
+
+    [TestMethod]
+    [DataRow(FFmpegLogLevel.Panic, LogLevel.Critical)]
+    [DataRow(FFmpegLogLevel.Fatal, LogLevel.Critical)]
+    [DataRow(FFmpegLogLevel.Error, LogLevel.Error)]
+    [DataRow(FFmpegLogLevel.Warning, LogLevel.Warning)]
+    [DataRow(FFmpegLogLevel.Info, LogLevel.Information)]
+    [DataRow(FFmpegLogLevel.Verbose, LogLevel.Debug)]
+    [DataRow(FFmpegLogLevel.Debug, LogLevel.Trace)]
+    [DataRow(FFmpegLogLevel.Trace, LogLevel.Trace)]
+    public void Logging_MapsEachFFmpegLevel(FFmpegLogLevel level, LogLevel expected) =>
+        Assert.AreEqual(expected, FFmpegLogging.ToLogLevel((int)level));
+
+    [TestMethod]
+    public void Logging_State_CarriesComponentMessageAndTemplate()
+    {
+        FFmpegLogging.LogState named = new("h264", "no frame!");
+        Assert.HasCount(3, named);
+        CollectionAssert.AreEqual(
+            new KeyValuePair<string, object?>[]
+            {
+                new("Component", "h264"),
+                new("Message", "no frame!"),
+                new("{OriginalFormat}", "{Component}: {Message}"),
+            },
+            named.ToList()
+        );
+        Assert.AreEqual(3, ((System.Collections.IEnumerable)named).Cast<object>().Count());
+        _ = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => named[3]);
+        Assert.AreEqual("h264: no frame!", named.ToString());
+        Assert.AreEqual("no frame!", new FFmpegLogging.LogState(null, "no frame!").ToString());
     }
 
     private sealed class CapturingLoggerFactory : ILoggerFactory
@@ -311,11 +398,14 @@ public sealed class StreamingTests
             string Category,
             LogLevel Level,
             string? Component,
-            string Message
+            string Message,
+            string Formatted
         )> Entries { get; } = new();
 
+        public bool Enabled { get; init; } = true;
+
         public ILogger CreateLogger(string categoryName) =>
-            new CapturingLogger(categoryName, Entries);
+            new CapturingLogger(categoryName, Entries, Enabled);
 
         public void AddProvider(ILoggerProvider provider) => throw new NotSupportedException();
 
@@ -328,14 +418,16 @@ public sealed class StreamingTests
             string Category,
             LogLevel Level,
             string? Component,
-            string Message
-        )> entries
+            string Message,
+            string Formatted
+        )> entries,
+        bool enabled
     ) : ILogger
     {
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => null;
 
-        public bool IsEnabled(LogLevel logLevel) => true;
+        public bool IsEnabled(LogLevel logLevel) => enabled;
 
         public void Log<TState>(
             LogLevel logLevel,
@@ -351,7 +443,8 @@ public sealed class StreamingTests
             string message = state is IReadOnlyList<KeyValuePair<string, object?>> fields
                 ? fields.First(v => v.Key == "Message").Value as string ?? string.Empty
                 : formatter(state, exception);
-            entries.Enqueue((category, logLevel, component, message));
+            Assert.IsTrue(enabled, "A disabled level reached the logger.");
+            entries.Enqueue((category, logLevel, component, message, formatter(state, exception)));
         }
     }
 }

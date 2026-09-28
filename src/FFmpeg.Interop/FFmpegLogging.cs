@@ -177,7 +177,7 @@ public static unsafe class FFmpegLogging
         return (className is null ? "FFmpeg" : $"FFmpeg.{className}", itemName);
     }
 
-    private static LogLevel ToLogLevel(int level) =>
+    internal static LogLevel ToLogLevel(int level) =>
         level switch
         {
             <= AV_LOG_FATAL => LogLevel.Critical,
@@ -189,7 +189,7 @@ public static unsafe class FFmpegLogging
         };
 
     // The structured state: {Component} and {Message}, with the template ILogger providers expect.
-    private sealed class LogState(string? component, string message)
+    internal sealed class LogState(string? component, string message)
         : IReadOnlyList<KeyValuePair<string, object?>>
     {
         public string Message { get; } = message;
