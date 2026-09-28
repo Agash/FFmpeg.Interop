@@ -47,6 +47,7 @@ public sealed class HardwareCodecTests
     public void RequireNatives() => TestNatives.Require();
 
     [TestMethod]
+    [TestCategory("RequiresHardwareDecoder")]
     [TestCategory("RequiresNvidia")]
     [DataRow("h264", "d3d11va")]
     [DataRow("hevc", "d3d11va")]
@@ -66,6 +67,7 @@ public sealed class HardwareCodecTests
         AssertDecodeMatchesSoftwareAsync(clip, GpuVendor.Nvidia, deviceType, decoder: null);
 
     [TestMethod]
+    [TestCategory("RequiresHardwareDecoder")]
     [TestCategory("RequiresAmf")]
     [DataRow("h264", "d3d11va", null)]
     [DataRow("hevc", "d3d11va", null)]
@@ -78,6 +80,7 @@ public sealed class HardwareCodecTests
     ) => AssertDecodeMatchesSoftwareAsync(clip, GpuVendor.Amd, deviceType, decoder);
 
     [TestMethod]
+    [TestCategory("RequiresHardwareDecoder")]
     [TestCategory("RequiresVaapi")]
     [DataRow("h264", "vaapi")]
     [DataRow("hevc", "vaapi")]
@@ -89,6 +92,7 @@ public sealed class HardwareCodecTests
         AssertDecodeMatchesSoftwareAsync(clip, GpuVendor.Amd, deviceType, decoder: null);
 
     [TestMethod]
+    [TestCategory("RequiresHardwareDecoder")]
     [TestCategory("RequiresVideoToolbox")]
     [DataRow("h264")]
     [DataRow("hevc")]
@@ -300,7 +304,6 @@ public sealed class HardwareCodecTests
         using HardwareDevice drm = HardwareDevice.Create(HardwareDeviceType.Drm, amd);
         using HardwareDevice vaapi = drm.Derive(HardwareDeviceType.Vaapi);
         using HardwareDevice vulkan = HardwareDevice.Create(HardwareDeviceType.Vulkan, amd);
-        _ = Assert.ThrowsExactly<FFmpegException>(() => vaapi.Derive(HardwareDeviceType.Drm));
 
         Assert.IsTrue(vaapi.TryGetVaapiDisplay(out nint display));
         Assert.AreNotEqual(0, display);

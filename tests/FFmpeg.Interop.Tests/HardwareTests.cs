@@ -108,6 +108,7 @@ public sealed class HardwareTests
     }
 
     [TestMethod]
+    [TestCategory("RequiresHardwareDecoder")]
     [TestCategory("RequiresGpu")]
     public async Task HardwareDecode_H264_IsBitExactWithSoftwareDecode()
     {
