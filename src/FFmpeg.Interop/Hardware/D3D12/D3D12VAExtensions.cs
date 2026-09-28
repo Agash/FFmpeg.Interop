@@ -23,7 +23,7 @@ public static unsafe class D3D12VAExtensions
         /// Wraps a Direct3D 12 device the application already uses, so resources it renders or captures
         /// can be encoded without leaving the GPU.
         /// </summary>
-        /// <param name="device">The <c>ID3D12Device*</c>. It is AddRef'd; FFmpeg releases it when the device is freed.</param>
+        /// <param name="device">The <c>ID3D12Device*</c>. It is AddRef'd, and released when the device is freed.</param>
         /// <returns>The device.</returns>
         public static HardwareDevice FromD3D12Device(nint device)
         {
@@ -35,8 +35,10 @@ public static unsafe class D3D12VAExtensions
             HardwareDevice created = HardwareDevice.Allocate(HardwareDeviceType.D3D12VA);
             try
             {
+                // The free callback runs whether or not init succeeds, and releases this reference.
                 _ = Dxgi.AddRef(device);
                 ((AVD3D12VADeviceContext*)created.Context->hwctx)->device = (void*)device;
+                created.Context->free = D3D12.ReleaseDevice;
                 created.Initialize();
                 return created;
             }

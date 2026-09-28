@@ -292,6 +292,35 @@ public sealed class HardwareCodecTests
         await AssertEncodeOnDeviceAsync("h264_d3d12va", wrapped, EncoderInput.Surfaces);
     }
 
+    // FFmpeg's D3D12 uninit does not release the device; a wrapped device must not keep the
+    // application's alive.
+    [TestMethod]
+    [TestCategory("RequiresNvidia")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    public void FromD3D12Device_ReleasesTheApplicationsDeviceWhenFreed()
+    {
+        using HardwareDevice opened = HardwareDevice.Create(
+            HardwareDeviceType.D3D12VA,
+            Adapter(GpuVendor.Nvidia)
+        );
+        Assert.IsTrue(opened.TryGetD3D12(out D3D12Device application));
+        uint before = References(application.Device);
+
+        HardwareDevice wrapped = HardwareDevice.FromD3D12Device(application.Device);
+        // The wrapper holds the device, and FFmpeg's init takes its ID3D12VideoDevice, which is the
+        // same object.
+        Assert.IsGreaterThan(before, References(application.Device));
+        wrapped.Dispose();
+
+        Assert.AreEqual(before, References(application.Device));
+
+        static uint References(nint unknown)
+        {
+            _ = Dxgi.AddRef(unknown);
+            return Dxgi.Release(unknown);
+        }
+    }
+
     [TestMethod]
     [TestCategory("RequiresVaapi")]
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]
