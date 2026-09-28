@@ -904,6 +904,9 @@ static class Passes
         Library("avdevice", "LibAVDevice", ["avdevice.h", "version.h", "version_major.h"]),
         Library("swscale", "LibSwScale", ["swscale.h", "version.h", "version_major.h"]),
         Library("swresample", "LibSwResample", ["swresample.h", "version.h", "version_major.h"]),
+        // Only the version: libavfilter is not bound yet, but libavdevice links it, so the loader must load
+        // and check it before libavdevice resolves.
+        Library("avfilter", "LibAVFilter", ["version_major.h"]),
         // Hardware contexts: one pass per API, each traversing only its own hwcontext header. The
         // SDK types they mention stay opaque (remapped to void, so pointers become void*); a
         // consumer holds them as the handles the SDK's own bindings define.
