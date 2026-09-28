@@ -2,7 +2,7 @@
 # Runs every test this machine can run: the CPU suites CI also runs, plus the hardware suites for the
 # GPUs present. No CI runner has a GPU, so the hardware paths are covered only by running this on
 # machines that have them. Coverage goes to artifacts/coverage/<machine>.cobertura.xml; merge it with
-# CI's with `dotnet dotnet-coverage merge`.
+# CI's with `dnx dotnet-coverage@18.11.2 --yes -- merge`.
 #
 # A vendor's suite is included when the GPU is present and fails if its device will not open: a skip
 # would read as a pass.

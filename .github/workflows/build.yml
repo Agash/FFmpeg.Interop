@@ -129,8 +129,9 @@ jobs:
       - name: Merge and gate
         shell: bash
         run: |
-          dotnet tool restore --disable-parallel
-          dotnet dotnet-coverage merge --output merged.cobertura.xml --output-format cobertura "coverage/**/*.cobertura.xml"
+          # Run once, pinned, without the tool manifest: the .NET 11 RC1 SDK fails to restore
+          # dotnet-coverage from a manifest on Linux runners.
+          dnx dotnet-coverage@18.11.2 --yes -- merge --output merged.cobertura.xml --output-format cobertura "coverage/**/*.cobertura.xml"
           python3 - <<'PY'
           import os, sys, xml.etree.ElementTree as ET
 
