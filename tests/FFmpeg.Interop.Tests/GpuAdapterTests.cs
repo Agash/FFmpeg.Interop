@@ -122,24 +122,28 @@ public sealed class GpuAdapterTests
     public void FindDecoderForDevice_Av1_SkipsTheSoftwareOnlyPreferredDecoder()
     {
         TestNatives.Require();
-        HardwareDeviceType vulkan = HardwareDeviceType.Vulkan;
+        // The platform's own video API: every FFmpeg build for it has that hwaccel for AV1 and H.264.
+        HardwareDeviceType device =
+            OperatingSystem.IsMacOS() ? HardwareDeviceType.VideoToolbox
+            : OperatingSystem.IsWindows() ? HardwareDeviceType.D3D11VA
+            : HardwareDeviceType.Vaapi;
         Assert.IsFalse(
-            Codec.FindDecoder(CodecId.Av1).SupportsDevice(vulkan),
+            Codec.FindDecoder(CodecId.Av1).SupportsDevice(device),
             "The preferred AV1 decoder is libdav1d."
         );
 
-        Codec decoder = Codec.FindDecoder(CodecId.Av1, vulkan);
+        Codec decoder = Codec.FindDecoder(CodecId.Av1, device);
 
         Assert.AreEqual("av1", decoder.Name);
-        Assert.IsTrue(decoder.SupportsDevice(vulkan));
+        Assert.IsTrue(decoder.SupportsDevice(device));
         Assert.AreEqual(
             "h264",
-            Codec.FindDecoder(CodecId.H264, vulkan).Name,
+            Codec.FindDecoder(CodecId.H264, device).Name,
             "The preferred decoder is kept when it qualifies."
         );
-        Assert.IsFalse(Codec.TryFindDecoder(CodecId.PcmS16LE, vulkan, out _));
+        Assert.IsFalse(Codec.TryFindDecoder(CodecId.PcmS16LE, device, out _));
         _ = Assert.ThrowsExactly<NotSupportedException>(() =>
-            Codec.FindDecoder(CodecId.PcmS16LE, vulkan)
+            Codec.FindDecoder(CodecId.PcmS16LE, device)
         );
     }
 

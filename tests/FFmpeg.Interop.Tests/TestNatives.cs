@@ -44,6 +44,27 @@ public static class TestNatives
         }
     }
 
+    /// <summary>
+    /// Stops a test that needs a decoder the FFmpeg build lacks. The pinned Windows and Linux builds are
+    /// known to carry every decoder the tests name, so there it is a failure; Homebrew's build on macOS
+    /// is configured upstream, so there the gap is reported as inconclusive, naming the decoder.
+    /// </summary>
+    public static void RequireDecoder(string name)
+    {
+        if (Codec.TryFindDecoder(name, out _))
+        {
+            return;
+        }
+
+        string message = $"This FFmpeg build has no {name} decoder.";
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.Inconclusive(message + " Homebrew's FFmpeg is configured without it.");
+        }
+
+        Assert.Fail(message);
+    }
+
     /// <summary>Fails the calling test with a clear reason when no FFmpeg build was fetched.</summary>
     public static void Require() => _ = RequireRoot();
 

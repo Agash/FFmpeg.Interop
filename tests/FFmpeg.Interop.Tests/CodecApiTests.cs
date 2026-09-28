@@ -181,9 +181,11 @@ public sealed class CodecApiTests
         encoder.SendEndOfStream();
         encoder.SendEndOfStream();
         CodecStatus status;
+        // Encoders with lookahead (libx264) hand most packets back only while draining.
         while ((status = encoder.Receive(packet)) == CodecStatus.Available)
         {
             packets++;
+            keyFrames += packet.IsKeyFrame ? 1 : 0;
         }
 
         Assert.AreEqual(CodecStatus.EndOfStream, status);

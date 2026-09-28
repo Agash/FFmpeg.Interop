@@ -27,6 +27,7 @@ public sealed class CodingTests
     )
     {
         TestNatives.Require();
+        TestNatives.RequireDecoder(decoder);
         string path = await TestMedia.ClipAsync(clip, TestContext.CancellationToken);
         IReadOnlyList<string> expected = await FFmpegCli.FrameMd5sAsync(
             path,
@@ -53,6 +54,7 @@ public sealed class CodingTests
     )
     {
         TestNatives.Require();
+        TestNatives.RequireDecoder(decoder);
         string path = await TestMedia.ClipAsync(clip, TestContext.CancellationToken);
         IReadOnlyList<string> expected = await FFmpegCli.FrameMd5sAsync(
             path,
