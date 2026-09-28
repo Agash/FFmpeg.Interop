@@ -70,8 +70,9 @@ What a sender needs from an encoder is there without dropping to the native laye
   `Encoder.SetRateControl` mid-stream for congestion control, on the encoders FFmpeg reconfigures
   (NVENC, libx264; `SupportsRateControlChanges` says which, instead of changes being silently ignored).
 - **GPU inputs:** without a copy, `Frame.FromDrmPrime` imports DMA-BUFs (a PipeWire screencast, a V4L2
-  camera) for `Frame.MapTo(pool, ...)` into VA-API or Vulkan surfaces, and
-  `HardwareFramePool.WrapCVPixelBuffer` hands an IOSurface-backed pixel buffer to VideoToolbox.
+  camera) for `Frame.MapTo(pool, ...)` into VA-API or Vulkan surfaces, `HardwareFramePool.WrapD3D12Texture`
+  hands an application's D3D12 texture to a D3D12 encoder, ordered after the producer's queue on the
+  GPU, and `HardwareFramePool.WrapCVPixelBuffer` hands an IOSurface-backed pixel buffer to VideoToolbox.
   D3D11 encoders only take their own pool's surfaces, so `HardwareFramePool.CopyFromD3D11Texture` copies
   a captured texture into one on the GPU.
 - **Capture devices:** `MediaReader.OpenDevice("v4l2", "/dev/video0")`, `dshow`, `avfoundation`, `lavfi`.

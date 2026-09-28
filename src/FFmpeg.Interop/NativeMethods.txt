@@ -5,4 +5,10 @@ ID3D11Device
 ID3D11DeviceContext
 ID3D11Texture2D
 ID3D12Device
+ID3D12Resource
+ID3D12Fence
+ID3D12CommandQueue
+CreateEvent
+CloseHandle
 DXGI_ERROR_NOT_FOUND
+ID3D12DeviceChild

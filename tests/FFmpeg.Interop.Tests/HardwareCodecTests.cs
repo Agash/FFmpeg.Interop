@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Windows.Win32.Graphics.Direct3D12;
 
 namespace FFmpeg.Interop.Tests;
 
@@ -11,6 +12,11 @@ public enum EncoderInput
 
     /// <summary>Surfaces uploaded into a frame pool on the device.</summary>
     Surfaces,
+
+    /// <summary>
+    /// Textures the application produced on the device, wrapped into the encoder's pool without a copy.
+    /// </summary>
+    WrappedD3D12Textures,
 }
 
 /// <summary>
@@ -319,6 +325,165 @@ public sealed class HardwareCodecTests
             _ = Dxgi.AddRef(unknown);
             return Dxgi.Release(unknown);
         }
+    }
+
+    [TestMethod]
+    [TestCategory("RequiresNvidia")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    [DataRow("h264_d3d12va")]
+    [DataRow("hevc_d3d12va")]
+    public async Task WrapD3D12Texture_EncodesApplicationTexturesWithoutACopy(string encoder)
+    {
+        using HardwareDevice opened = HardwareDevice.Create(
+            HardwareDeviceType.D3D12VA,
+            Adapter(GpuVendor.Nvidia)
+        );
+        Assert.IsTrue(opened.TryGetD3D12(out D3D12Device application));
+        using HardwareDevice device = HardwareDevice.FromD3D12Device(application.Device);
+
+        await AssertEncodeOnDeviceAsync(encoder, device, EncoderInput.WrappedD3D12Textures);
+    }
+
+    // The frame's fence is signalled on the producer's queue behind the work already submitted to it,
+    // so the encoder waits for the producer on the GPU. The queue is held back by a gate fence here,
+    // standing in for rendering that has not finished yet.
+    [TestMethod]
+    [TestCategory("RequiresNvidia")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    public unsafe void WrapD3D12Texture_IsReadyWhenTheProducersQueueGetsThere()
+    {
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.D3D12VA,
+            Adapter(GpuVendor.Nvidia)
+        );
+        Assert.IsTrue(device.TryGetD3D12(out D3D12Device objects));
+        using HardwareFramePool producer = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D12,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D12,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using Frame source = new();
+        source.AllocateVideo(64, 48, PixelFormat.Nv12);
+        byte[] pixels = new byte[source.GetImageSize()];
+        new Random(13).NextBytes(pixels);
+        source.CopyImageFrom(pixels);
+        using Frame rendered = new();
+        producer.Upload(source, rendered);
+        Assert.IsTrue(rendered.TryGetD3D12Texture(out D3D12Texture texture));
+
+        ID3D12Device* d3d12 = (ID3D12Device*)objects.Device;
+        D3D12_COMMAND_QUEUE_DESC description = new()
+        {
+            Type = D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_DIRECT,
+        };
+        d3d12->CreateCommandQueue(in description, out ID3D12CommandQueue* queue);
+        d3d12->CreateFence(0, D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_NONE, out ID3D12Fence* gate);
+        try
+        {
+            queue->Wait(gate, 1);
+            using Frame wrapped = new();
+            pool.WrapD3D12Texture(texture.Resource, (nint)queue, wrapped);
+            Assert.IsTrue(wrapped.TryGetD3D12Texture(out D3D12Texture frame));
+            Assert.AreEqual(texture.Resource, frame.Resource);
+            Assert.AreEqual(1UL, frame.FenceValue);
+            ID3D12Fence* ready = (ID3D12Fence*)frame.Fence;
+            Assert.AreEqual(
+                0UL,
+                ready->GetCompletedValue(),
+                "The frame was ready before its producer."
+            );
+
+            gate->Signal(1);
+            SpinWait.SpinUntil(() => ready->GetCompletedValue() >= 1, TimeSpan.FromSeconds(10));
+            Assert.AreEqual(1UL, ready->GetCompletedValue());
+
+            // Reading the wrapped frame reads the producer's texture: nothing was copied.
+            using Frame back = new();
+            wrapped.TransferTo(back);
+            byte[] downloaded = new byte[back.GetImageSize()];
+            _ = back.CopyImageTo(downloaded);
+            CollectionAssert.AreEqual(pixels, downloaded);
+        }
+        finally
+        {
+            // The queue is idle once the gate is open and its signal has landed.
+            gate->Signal(1);
+            _ = gate->Release();
+            _ = queue->Release();
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("RequiresNvidia")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    public void WrapD3D12Texture_RefusesTexturesThePoolCannotHold()
+    {
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.D3D12VA,
+            Adapter(GpuVendor.Nvidia)
+        );
+        using HardwareFramePool producer = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D12,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using Frame rendered = new();
+        producer.GetFrame(rendered);
+        Assert.IsTrue(rendered.TryGetD3D12Texture(out D3D12Texture texture));
+        using Frame wrapped = new();
+
+        using HardwareFramePool p010 = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D12,
+            PixelFormat.P010,
+            64,
+            48
+        );
+        using HardwareFramePool larger = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D12,
+            PixelFormat.Nv12,
+            128,
+            96
+        );
+        _ = Assert.ThrowsExactly<ArgumentException>(() =>
+            p010.WrapD3D12Texture(texture.Resource, 0, wrapped)
+        );
+        _ = Assert.ThrowsExactly<ArgumentException>(() =>
+            larger.WrapD3D12Texture(texture.Resource, 0, wrapped)
+        );
+        _ = Assert.ThrowsExactly<ArgumentNullException>(() =>
+            producer.WrapD3D12Texture(0, 0, wrapped)
+        );
+        _ = Assert.ThrowsExactly<ArgumentNullException>(() =>
+            producer.WrapD3D12Texture(texture.Resource, 0, null!)
+        );
+
+        using HardwareDevice d3d11 = HardwareDevice.Create(
+            HardwareDeviceType.D3D11VA,
+            Adapter(GpuVendor.Nvidia)
+        );
+        using HardwareFramePool d3d11Pool = HardwareFramePool.Create(
+            d3d11,
+            PixelFormat.D3D11,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        _ = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            d3d11Pool.WrapD3D12Texture(texture.Resource, 0, wrapped)
+        );
     }
 
     [TestMethod]
@@ -718,15 +883,29 @@ public sealed class HardwareCodecTests
         string output = scratch["hardware.ts"];
 
         using HardwareFramePool? pool =
-            input == EncoderInput.Surfaces
-                ? HardwareFramePool.Create(
+            input == EncoderInput.SystemMemory
+                ? null
+                : HardwareFramePool.Create(
                     device,
                     device.SurfaceFormat,
                     PixelFormat.Nv12,
                     TestMedia.Width,
                     TestMedia.Height
+                );
+
+        // Stands in for the application's renderer: its own textures on the encoder's device. Each
+        // stays alive, unwritten, until the encoder is done with it.
+        using HardwareFramePool? producer =
+            input == EncoderInput.WrappedD3D12Textures
+                ? HardwareFramePool.Create(
+                    device,
+                    PixelFormat.D3D12,
+                    PixelFormat.Nv12,
+                    TestMedia.Width,
+                    TestMedia.Height
                 )
                 : null;
+        List<Frame> produced = [];
 
         using (MediaWriter writer = MediaWriter.Create(output))
         using (
@@ -761,7 +940,22 @@ public sealed class HardwareCodecTests
                     PixelFormat.Nv12
                 );
                 Frame fed = frame;
-                if (pool is not null)
+                if (
+                    producer is not null
+                    && pool is not null
+                    && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 10240)
+                )
+                {
+                    Frame texture = new();
+                    produced.Add(texture);
+                    producer.Upload(frame, texture);
+                    Assert.IsTrue(texture.TryGetD3D12Texture(out D3D12Texture rendered));
+                    pool.WrapD3D12Texture(rendered.Resource, 0, surface);
+                    Assert.IsTrue(surface.TryGetD3D12Texture(out D3D12Texture wrapped));
+                    Assert.AreEqual(rendered.Resource, wrapped.Resource, "The texture was copied.");
+                    fed = surface;
+                }
+                else if (pool is not null)
                 {
                     pool.Upload(frame, surface);
                     fed = surface;
@@ -780,6 +974,11 @@ public sealed class HardwareCodecTests
             }
 
             writer.Complete();
+        }
+
+        foreach (Frame texture in produced)
+        {
+            texture.Dispose();
         }
 
         JsonElement probed = (
