@@ -100,17 +100,17 @@ public sealed class GpuAdapterTests
         _ = Assert.ThrowsExactly<ArgumentNullException>(() =>
             HardwareDevice.Create(HardwareDeviceType.Vulkan, (GpuAdapter)null!)
         );
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 10240))
         {
             _ = Assert.ThrowsExactly<NotSupportedException>(() =>
                 HardwareDevice.Create(HardwareDeviceType.Vulkan, bare)
             );
-            WrapNullD3D11DeviceThrows();
+            WrapNullDeviceThrows();
         }
     }
 
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static void WrapNullD3D11DeviceThrows()
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    private static void WrapNullDeviceThrows()
     {
         _ = Assert.ThrowsExactly<ArgumentNullException>(() => HardwareDevice.FromD3D11Device(0));
         _ = Assert.ThrowsExactly<ArgumentNullException>(() => HardwareDevice.FromD3D12Device(0));

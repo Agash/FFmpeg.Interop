@@ -25,7 +25,7 @@ public sealed unsafe class SurfaceViewTests
             native->linesize[0] = 256;
 
             // Each platform checks the surfaces it has.
-            if (OperatingSystem.IsWindows())
+            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 10240))
             {
                 frame.PixelFormat = PixelFormat.D3D11;
                 Assert.IsTrue(frame.TryGetD3D11Texture(out D3D11Texture texture));
@@ -70,7 +70,7 @@ public sealed unsafe class SurfaceViewTests
 
         frame.PixelFormat = PixelFormat.Vulkan;
         Assert.IsFalse(frame.TryGetVulkanFrame(out _));
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 10240))
         {
             frame.PixelFormat = PixelFormat.D3D11;
             Assert.IsFalse(frame.TryGetD3D11Texture(out _));
@@ -92,7 +92,7 @@ public sealed unsafe class SurfaceViewTests
     }
 
     [TestMethod]
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     [OSCondition(OperatingSystems.Windows)]
     public void TryGetD3D12Texture_ReadsTheResourceAndItsFence()
     {

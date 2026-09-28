@@ -175,7 +175,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresNvidia")]
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public void NvidiaAdapter_ResolvesToTheSameGpuThroughEveryApi()
     {
         GpuAdapter nvidia = Adapter(GpuVendor.Nvidia);
@@ -199,7 +199,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresNvidia")]
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public void CudaSurfaces_ExposeDevicePointers()
     {
         using HardwareDevice device = HardwareDevice.Create(
@@ -225,7 +225,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresNvidia")]
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public void D3D12Surfaces_RoundTripAndExposeTheirFence()
     {
         using HardwareDevice device = HardwareDevice.Create(
@@ -262,7 +262,7 @@ public sealed class HardwareCodecTests
     // Graphics Capture session), and the encoder is handed that device rather than opening its own.
     [TestMethod]
     [TestCategory("RequiresNvidia")]
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public async Task ApplicationOwnedD3D11Device_EncodesItsSurfaces()
     {
         using HardwareDevice opened = HardwareDevice.Create(
@@ -279,7 +279,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresNvidia")]
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public async Task ApplicationOwnedD3D12Device_EncodesItsSurfaces()
     {
         using HardwareDevice opened = HardwareDevice.Create(
@@ -388,7 +388,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresNvidia")]
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public void CopyFromD3D11Texture_CopiesOnTheGpuAndRefusesAnotherDevicesTexture()
     {
         using HardwareDevice nvidia = HardwareDevice.Create(

@@ -1,4 +1,3 @@
-using System.Runtime.Versioning;
 using FFmpeg.Interop.Native;
 using static FFmpeg.Interop.Native.LibAVUtil;
 
@@ -135,127 +134,22 @@ public sealed unsafe class HardwareFramePool : IDisposable
         source.TransferTo(destination);
     }
 
-    /// <summary>
-    /// Copies a Direct3D 11 texture into a surface from this pool on the GPU, the zero-readback way to
-    /// hand an encoder a texture the application rendered or captured (a Windows Graphics Capture frame):
-    /// encoders only take surfaces from their own pool.
-    /// </summary>
-    /// <param name="texture">
-    /// The <c>ID3D11Texture2D*</c>. It must be on this pool's device (create the pool's device with
-    /// <see cref="HardwareDevice.FromD3D11Device"/> from the application's), in the pool's DXGI format, and
-    /// at least the pool's size; the top-left pool-sized region is copied.
-    /// </param>
-    /// <param name="subresource">The source subresource: the array slice, for a texture array.</param>
-    /// <param name="destination">The frame to receive the surface; its previous content is released.</param>
-    [SupportedOSPlatform("windows")]
-    public void CopyFromD3D11Texture(nint texture, int subresource, Frame destination)
-    {
-        if (texture == 0)
-        {
-            throw new ArgumentNullException(nameof(texture));
-        }
-
-        ArgumentOutOfRangeException.ThrowIfNegative(subresource);
-        ArgumentNullException.ThrowIfNull(destination);
-        if (Format != PixelFormat.D3D11)
-        {
-            throw new InvalidOperationException(
-                $"The pool holds {Format} surfaces, not D3D11 textures."
-            );
-        }
-
-        AVD3D11VADeviceContext* device = (AVD3D11VADeviceContext*)Context->device_ctx->hwctx;
-        nint owner = D3D11.GetDevice(texture);
-        _ = D3D11.Release(owner);
-        if (owner != (nint)device->device)
-        {
-            throw new ArgumentException(
-                "The texture belongs to another D3D11 device; open the pool's device from the application's device.",
-                nameof(texture)
-            );
-        }
-
-        GetFrame(destination);
-        if (!destination.TryGetD3D11Texture(out D3D11Texture surface))
-        {
-            throw new InvalidOperationException("The pool did not produce a D3D11 surface.");
-        }
-
-        D3D11.TextureDescription source = D3D11.GetDescription(texture);
-        D3D11.TextureDescription target = D3D11.GetDescription(surface.Texture);
-        if (
-            source.Format != target.Format
-            || source.Width < (uint)Width
-            || source.Height < (uint)Height
-        )
-        {
-            throw new ArgumentException(
-                $"The texture is {source.Width}x{source.Height} in DXGI format {source.Format}; the pool needs at least {Width}x{Height} in format {target.Format}.",
-                nameof(texture)
-            );
-        }
-
-        // The device's immediate context is shared with FFmpeg's encoders and transfers, which take this
-        // lock around it.
-        D3D11.Box region = new()
-        {
-            Right = (uint)Width,
-            Bottom = (uint)Height,
-            Back = 1,
-        };
-        device->@lock(device->lock_ctx);
-        try
-        {
-            D3D11.CopySubresourceRegion(
-                (nint)device->device_context,
-                surface.Texture,
-                (uint)surface.ArraySlice,
-                texture,
-                (uint)subresource,
-                region
-            );
-        }
-        finally
-        {
-            device->unlock(device->lock_ctx);
-        }
-    }
-
-    /// <summary>
-    /// Wraps a <c>CVPixelBufferRef</c> (for example an IOSurface from a Syphon server or a capture
-    /// session) as a VideoToolbox frame of this pool, without copying, for a VideoToolbox encoder. The
-    /// frame retains the pixel buffer and releases it when FFmpeg drops the frame's last reference.
-    /// </summary>
-    /// <param name="pixelBuffer">The <c>CVPixelBufferRef</c>, in the pool's format and size.</param>
-    /// <param name="destination">The frame to receive it; its previous content is released.</param>
-    [SupportedOSPlatform("macos")]
-    public void WrapCVPixelBuffer(nint pixelBuffer, Frame destination)
-    {
-        if (pixelBuffer == 0)
-        {
-            throw new ArgumentNullException(nameof(pixelBuffer));
-        }
-
-        ArgumentNullException.ThrowIfNull(destination);
-        if (Format != PixelFormat.VideoToolbox)
-        {
-            throw new InvalidOperationException(
-                $"The pool holds {Format} surfaces, not CVPixelBuffers."
-            );
-        }
-
-        AVFrame* frame = destination.NativePointer;
-        av_frame_unref(frame);
-        frame->buf.e0 = CoreFoundation.RetainAsBuffer(pixelBuffer);
-        frame->data[3] = (byte*)pixelBuffer;
-        frame->format = (int)AVPixelFormat.AV_PIX_FMT_VIDEOTOOLBOX;
-        frame->width = Width;
-        frame->height = Height;
-        frame->hw_frames_ctx = NewReference();
-    }
-
     /// <inheritdoc/>
     public void Dispose() => _reference.Dispose();
 
     internal AVBufferRef* NewReference() => _reference.NewReference();
+
+    // Makes destination a frame of this pool over a surface an import built, in the shape FFmpeg's own
+    // frames of the pool's type have: buffer owns the surface and data[dataIndex] points at it.
+    internal void Adopt(Frame destination, AVBufferRef* buffer, int dataIndex, void* data)
+    {
+        AVFrame* frame = destination.NativePointer;
+        av_frame_unref(frame);
+        frame->buf.e0 = buffer;
+        frame->data[dataIndex] = (byte*)data;
+        frame->format = (int)Format.Value;
+        frame->width = Width;
+        frame->height = Height;
+        frame->hw_frames_ctx = NewReference();
+    }
 }

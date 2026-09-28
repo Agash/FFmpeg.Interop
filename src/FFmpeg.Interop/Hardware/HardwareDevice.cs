@@ -1,7 +1,6 @@
-using System.Buffers.Binary;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 using FFmpeg.Interop.Native;
 using static FFmpeg.Interop.Native.LibAVUtil;
 
@@ -53,9 +52,12 @@ public sealed unsafe class HardwareDevice : IDisposable
     )
     {
         ThrowIfUnloadable(type);
-        int result = TryCreateCore(type, device, options, out HardwareDevice? created);
-        FFmpegError.ThrowIfError(result, "av_hwdevice_ctx_create");
-        return created!;
+        if (!TryCreateCore(type, device, options, out HardwareDevice? created, out int error))
+        {
+            FFmpegError.Throw(error, "av_hwdevice_ctx_create");
+        }
+
+        return created;
     }
 
     /// <summary>
@@ -153,30 +155,14 @@ public sealed unsafe class HardwareDevice : IDisposable
         throw NotOn(type, adapter);
     }
 
-    /// <summary>
-    /// Wraps a Direct3D 11 device the application already uses, so frames it renders or captures can be
-    /// encoded without leaving the GPU. The device should have multithread protection enabled
-    /// (<c>ID3D10Multithread::SetMultithreadProtected</c>) if the application uses it concurrently.
-    /// </summary>
-    /// <param name="device">The <c>ID3D11Device*</c>. It is AddRef'd; FFmpeg releases it when the device is freed.</param>
-    /// <returns>The device.</returns>
-    [SupportedOSPlatform("windows")]
-    public static HardwareDevice FromD3D11Device(nint device) =>
-        Wrap(HardwareDeviceType.D3D11VA, device);
-
-    /// <summary>Wraps a Direct3D 12 device the application already uses.</summary>
-    /// <param name="device">The <c>ID3D12Device*</c>. It is AddRef'd; FFmpeg releases it when the device is freed.</param>
-    /// <returns>The device.</returns>
-    [SupportedOSPlatform("windows")]
-    public static HardwareDevice FromD3D12Device(nint device) =>
-        Wrap(HardwareDeviceType.D3D12VA, device);
-
     /// <summary>Opens a device if this machine has one of the type.</summary>
     /// <param name="type">The device type.</param>
     /// <param name="device">The opened device, or null.</param>
     /// <returns>Whether a device was opened.</returns>
-    public static bool TryCreate(HardwareDeviceType type, out HardwareDevice? device) =>
-        TryCreateCore(type, null, null, out device) >= 0;
+    public static bool TryCreate(
+        HardwareDeviceType type,
+        [NotNullWhen(true)] out HardwareDevice? device
+    ) => TryCreateCore(type, null, null, out device, out _);
 
     /// <summary>
     /// Opens a device of another type on the same hardware, sharing it: a VA-API device derived from a
@@ -191,99 +177,6 @@ public sealed unsafe class HardwareDevice : IDisposable
         AVBufferRef* derived = null;
         FFmpegError.ThrowIfError(av_hwdevice_ctx_create_derived(&derived, type, NativePointer, 0));
         return new(SafeBufferHandle.Own(derived, "av_hwdevice_ctx_create_derived"));
-    }
-
-    /// <summary>The Direct3D 11 objects behind a <see cref="HardwareDeviceType.D3D11VA"/> device.</summary>
-    /// <param name="device">The COM pointers, not AddRef'd: valid while the device is open.</param>
-    /// <returns>Whether the device is a D3D11VA device.</returns>
-    [SupportedOSPlatform("windows")]
-    public bool TryGetD3D11(out D3D11Device device)
-    {
-        if (Type != HardwareDeviceType.D3D11VA)
-        {
-            device = default;
-            return false;
-        }
-
-        AVD3D11VADeviceContext* context = (AVD3D11VADeviceContext*)Context->hwctx;
-        device = new(
-            (nint)context->device,
-            (nint)context->device_context,
-            (nint)context->video_device,
-            (nint)context->video_context
-        );
-        return true;
-    }
-
-    /// <summary>The Direct3D 12 objects behind a <see cref="HardwareDeviceType.D3D12VA"/> device.</summary>
-    /// <param name="device">The COM pointers, not AddRef'd: valid while the device is open.</param>
-    /// <returns>Whether the device is a D3D12VA device.</returns>
-    [SupportedOSPlatform("windows")]
-    public bool TryGetD3D12(out D3D12Device device)
-    {
-        if (Type != HardwareDeviceType.D3D12VA)
-        {
-            device = default;
-            return false;
-        }
-
-        AVD3D12VADeviceContext* context = (AVD3D12VADeviceContext*)Context->hwctx;
-        device = new((nint)context->device, (nint)context->video_device);
-        return true;
-    }
-
-    /// <summary>The <c>VADisplay</c> of a <see cref="HardwareDeviceType.Vaapi"/> device.</summary>
-    /// <param name="display">The display.</param>
-    /// <returns>Whether the device is a VA-API device.</returns>
-    [SupportedOSPlatform("linux")]
-    public bool TryGetVaapiDisplay(out nint display)
-    {
-        display =
-            Type == HardwareDeviceType.Vaapi
-                ? (nint)((AVVAAPIDeviceContext*)Context->hwctx)->display
-                : 0;
-        return display != 0;
-    }
-
-    /// <summary>The DRM file descriptor of a <see cref="HardwareDeviceType.Drm"/> device.</summary>
-    /// <param name="fileDescriptor">The descriptor, owned by the device.</param>
-    /// <returns>Whether the device is a DRM device.</returns>
-    [SupportedOSPlatform("linux")]
-    public bool TryGetDrmFileDescriptor(out int fileDescriptor)
-    {
-        bool isDrm = Type == HardwareDeviceType.Drm;
-        fileDescriptor = isDrm ? ((AVDRMDeviceContext*)Context->hwctx)->fd : -1;
-        return isDrm;
-    }
-
-    /// <summary>The Vulkan handles of a <see cref="HardwareDeviceType.Vulkan"/> device.</summary>
-    /// <param name="device">The instance, physical device and logical device.</param>
-    /// <returns>Whether the device is a Vulkan device.</returns>
-    public bool TryGetVulkan(out VulkanDevice device)
-    {
-        if (Type != HardwareDeviceType.Vulkan)
-        {
-            device = default;
-            return false;
-        }
-
-        AVVulkanDeviceContext* context = (AVVulkanDeviceContext*)Context->hwctx;
-        device = new((nint)context->inst, (nint)context->phys_dev, (nint)context->act_dev);
-        return true;
-    }
-
-    /// <summary>The <c>CUcontext</c> of a <see cref="HardwareDeviceType.Cuda"/> device.</summary>
-    /// <param name="context">The context.</param>
-    /// <returns>Whether the device is a CUDA device.</returns>
-    [SupportedOSPlatform("windows")]
-    [SupportedOSPlatform("linux")]
-    public bool TryGetCudaContext(out nint context)
-    {
-        context =
-            Type == HardwareDeviceType.Cuda
-                ? (nint)((AVCUDADeviceContext*)Context->hwctx)->cuda_ctx
-                : 0;
-        return context != 0;
     }
 
     /// <summary>
@@ -330,6 +223,14 @@ public sealed unsafe class HardwareDevice : IDisposable
 
     internal AVBufferRef* NewReference() => _reference.NewReference();
 
+    // A device over native objects the application already has: the caller fills the type's hwctx,
+    // then calls Initialize. Each hardware API's From* factory is built on the pair.
+    internal static HardwareDevice Allocate(HardwareDeviceType type) =>
+        new(SafeBufferHandle.Own(av_hwdevice_ctx_alloc(type), "av_hwdevice_ctx_alloc"));
+
+    internal void Initialize() =>
+        FFmpegError.ThrowIfError(av_hwdevice_ctx_init(NativePointer), "av_hwdevice_ctx_init");
+
     // FFmpeg builds for Linux commonly reach libva through a stub compiled into libavutil, which
     // dlopen()s libva on first use and aborts the process when it cannot: a machine without the VA-API
     // runtime would not get an error, it would lose the process. The same load is tried here first,
@@ -357,17 +258,19 @@ public sealed unsafe class HardwareDevice : IDisposable
         }
     }
 
-    private static int TryCreateCore(
+    private static bool TryCreateCore(
         HardwareDeviceType type,
         string? device,
         IReadOnlyDictionary<string, string>? options,
-        out HardwareDevice? created
+        [NotNullWhen(true)] out HardwareDevice? created,
+        out int error
     )
     {
+        created = null;
         if (UsesLibVa(type) && !s_libVaLoads.Value)
         {
-            created = null;
-            return LibAVUtil.AVERROR(Errno.ENOSYS);
+            error = LibAVUtil.AVERROR(Errno.ENOSYS);
+            return false;
         }
 
         AVBufferRef* reference = null;
@@ -375,55 +278,19 @@ public sealed unsafe class HardwareDevice : IDisposable
         try
         {
             using Utf8String name = new(device);
-            int result = av_hwdevice_ctx_create(&reference, type, name, dictionary, 0);
-            created =
-                result < 0
-                    ? null
-                    : new HardwareDevice(SafeBufferHandle.Own(reference, "av_hwdevice_ctx_create"));
-            return result;
+            error = av_hwdevice_ctx_create(&reference, type, name, dictionary, 0);
+            if (error < 0)
+            {
+                return false;
+            }
+
+            created = new HardwareDevice(SafeBufferHandle.Own(reference, "av_hwdevice_ctx_create"));
+            return true;
         }
         finally
         {
             av_dict_free(&dictionary);
         }
-    }
-
-    // The locally unique identifier of the GPU behind a Vulkan device, which DXGI reports for the same GPU.
-    internal bool TryGetLuid(out long luid)
-    {
-        luid = 0;
-        if (Type != HardwareDeviceType.Vulkan)
-        {
-            return false;
-        }
-
-        AVVulkanDeviceContext* context = (AVVulkanDeviceContext*)Context->hwctx;
-        using Utf8String name = new("vkGetPhysicalDeviceProperties2");
-        delegate* unmanaged[Stdcall]<void*, VkPhysicalDeviceProperties2*, void> getProperties =
-            (delegate* unmanaged[Stdcall]<void*, VkPhysicalDeviceProperties2*, void>)
-                context->get_proc_addr(context->inst, name);
-        if (getProperties is null)
-        {
-            return false;
-        }
-
-        VkPhysicalDeviceIDProperties identity = new()
-        {
-            sType = VkStructureType.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES,
-        };
-        VkPhysicalDeviceProperties2 properties = new()
-        {
-            sType = VkStructureType.VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
-            pNext = &identity,
-        };
-        getProperties(context->phys_dev, &properties);
-        if (identity.deviceLUIDValid == 0)
-        {
-            return false;
-        }
-
-        luid = BinaryPrimitives.ReadInt64LittleEndian(identity.deviceLUID);
-        return true;
     }
 
     // Vulkan numbers GPUs its own way and FFmpeg selects only by that index or by name, which two
@@ -437,18 +304,19 @@ public sealed unsafe class HardwareDevice : IDisposable
         for (int index = 0; ; index++)
         {
             if (
-                TryCreateCore(
+                !TryCreateCore(
                     HardwareDeviceType.Vulkan,
                     index.ToString(CultureInfo.InvariantCulture),
                     options,
-                    out HardwareDevice? candidate
-                ) < 0
+                    out HardwareDevice? candidate,
+                    out _
+                )
             )
             {
                 throw new NotSupportedException($"No Vulkan device is {adapter}.");
             }
 
-            if (candidate!.TryGetLuid(out long candidateLuid) && candidateLuid == luid)
+            if (candidate.TryGetLuid(out long candidateLuid) && candidateLuid == luid)
             {
                 return candidate;
             }
@@ -462,39 +330,6 @@ public sealed unsafe class HardwareDevice : IDisposable
 
     private static NotSupportedException NotOn(HardwareDeviceType type, GpuAdapter adapter) =>
         new($"A {type} device cannot be opened on {adapter} on this platform.");
-
-    [SupportedOSPlatform("windows")]
-    private static HardwareDevice Wrap(HardwareDeviceType type, nint device)
-    {
-        if (device == 0)
-        {
-            throw new ArgumentNullException(nameof(device));
-        }
-
-        AVBufferRef* reference = av_hwdevice_ctx_alloc(type);
-        SafeBufferHandle owner = SafeBufferHandle.Own(reference, "av_hwdevice_ctx_alloc");
-        try
-        {
-            _ = Dxgi.AddRef(device);
-            void* context = ((AVHWDeviceContext*)reference->data)->hwctx;
-            if (type == HardwareDeviceType.D3D11VA)
-            {
-                ((AVD3D11VADeviceContext*)context)->device = (void*)device;
-            }
-            else
-            {
-                ((AVD3D12VADeviceContext*)context)->device = (void*)device;
-            }
-
-            FFmpegError.ThrowIfError(av_hwdevice_ctx_init(reference));
-            return new HardwareDevice(owner);
-        }
-        catch
-        {
-            owner.Dispose();
-            throw;
-        }
-    }
 
     private static PixelFormat[] Formats(AVPixelFormat* list)
     {
@@ -512,29 +347,6 @@ public sealed unsafe class HardwareDevice : IDisposable
         return [.. new ReadOnlySpan<PixelFormat>(list, count)];
     }
 }
-
-/// <summary>The Direct3D 11 objects of a D3D11VA device.</summary>
-/// <param name="Device">The <c>ID3D11Device*</c>.</param>
-/// <param name="DeviceContext">The <c>ID3D11DeviceContext*</c>.</param>
-/// <param name="VideoDevice">The <c>ID3D11VideoDevice*</c>.</param>
-/// <param name="VideoContext">The <c>ID3D11VideoContext*</c>.</param>
-public readonly record struct D3D11Device(
-    nint Device,
-    nint DeviceContext,
-    nint VideoDevice,
-    nint VideoContext
-);
-
-/// <summary>The Direct3D 12 objects of a D3D12VA device.</summary>
-/// <param name="Device">The <c>ID3D12Device*</c>.</param>
-/// <param name="VideoDevice">The <c>ID3D12VideoDevice*</c>.</param>
-public readonly record struct D3D12Device(nint Device, nint VideoDevice);
-
-/// <summary>The Vulkan handles of a Vulkan device.</summary>
-/// <param name="Instance">The <c>VkInstance</c>.</param>
-/// <param name="PhysicalDevice">The <c>VkPhysicalDevice</c>.</param>
-/// <param name="Device">The <c>VkDevice</c>.</param>
-public readonly record struct VulkanDevice(nint Instance, nint PhysicalDevice, nint Device);
 
 /// <summary>What frames a hardware device can hold.</summary>
 /// <param name="HardwareFormats">The hardware pixel formats.</param>

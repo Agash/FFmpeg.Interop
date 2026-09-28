@@ -268,7 +268,7 @@ public sealed class FrameTests
         frame.AllocateVideo(16, 16, PixelFormat.Nv12);
 
         Assert.IsFalse(frame.TryGetVulkanFrame(out _));
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 10240))
         {
             Assert.IsFalse(frame.TryGetD3D11Texture(out _));
             Assert.IsFalse(frame.TryGetD3D12Texture(out _));

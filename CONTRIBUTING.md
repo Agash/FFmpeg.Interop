@@ -55,6 +55,19 @@ a bug fix needs a test that fails before the fix.
 - Hand-written interop uses `LibraryImport` and function pointers; nothing relies on runtime
   marshalling, which the assembly disables.
 - APIs that only make sense on one platform carry `[SupportedOSPlatform]`.
+- Windows APIs (DXGI, D3D11, D3D12, events) come from CsWin32: list them in
+  `src/FFmpeg.Interop/NativeMethods.txt` rather than declaring COM vtables by hand.
+
+### Hardware APIs
+
+`src/FFmpeg.Interop/Hardware/` holds the API-neutral types (`HardwareDevice`, `HardwareFramePool`,
+`GpuAdapter`, device routing) and one folder per FFmpeg hwcontext. A hwcontext's folder holds everything
+specific to it: its device and surface records, the native calls it needs, and a
+`<Api>Extensions` class whose C# `extension` blocks add its members to `HardwareDevice`,
+`HardwareFramePool` and `Frame` (`TryGet<Api>...` views, `From<Api>Device`, imports). Supporting a new
+one (RKMPP, V4L2 M2M, a vendor API) is a new folder; the core types do not change. Imports build their
+frames the way FFmpeg's own pool for that hwcontext does, and hand them over with
+`HardwareFramePool.Adopt`.
 
 ## The bindings
 

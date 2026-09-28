@@ -57,7 +57,7 @@ public sealed class HardwareTests
         Assert.AreNotEqual(0, handles.PhysicalDevice);
         Assert.AreNotEqual(0, handles.Device);
         Assert.AreEqual(PixelFormat.Vulkan, device.SurfaceFormat);
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 10240))
         {
             Assert.IsFalse(device.TryGetD3D11(out _));
             Assert.IsFalse(device.TryGetD3D12(out _));
@@ -226,7 +226,7 @@ public sealed class HardwareTests
     private static void AssertTypedAccessors(HardwareDevice device)
     {
         Assert.AreEqual(PlatformType, device.Type);
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 10240))
         {
             Assert.IsTrue(device.TryGetD3D11(out D3D11Device d3d11));
             Assert.AreNotEqual(0, d3d11.Device);
@@ -284,7 +284,10 @@ public sealed class HardwareTests
         pool.Upload(source, surface);
         Assert.IsTrue(surface.IsHardwareFrame);
         Assert.AreEqual(hardwareFormat, surface.PixelFormat);
-        if (OperatingSystem.IsWindows() && hardwareFormat == PixelFormat.D3D11)
+        if (
+            OperatingSystem.IsWindowsVersionAtLeast(10, 0, 10240)
+            && hardwareFormat == PixelFormat.D3D11
+        )
         {
             Assert.IsTrue(surface.TryGetD3D11Texture(out D3D11Texture texture));
             Assert.AreNotEqual(0, texture.Texture);

@@ -143,6 +143,8 @@ public sealed class StreamingTests
     }
 
     [TestMethod]
+    [OSCondition(OperatingSystems.Linux)]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
     public void DrmPrimeImage_BuildsTheDescriptorFFmpegMapsFrom()
     {
         DrmPrimeImage image = new(
@@ -164,6 +166,8 @@ public sealed class StreamingTests
     }
 
     [TestMethod]
+    [OSCondition(OperatingSystems.Linux)]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
     public void DrmPrimeImage_OutsideTheDescriptorsLimits_IsRefused()
     {
         DrmObject dmaBuf = new(3, 100, 0);
