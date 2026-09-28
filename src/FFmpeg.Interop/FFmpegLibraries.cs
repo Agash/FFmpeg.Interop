@@ -83,6 +83,13 @@ public static class FFmpegLibraries
         : $"lib{name}.so.{major}";
 
     /// <summary>
+    /// The version string of the loaded FFmpeg build (<c>av_version_info</c>), for example <c>n9.0.1</c>
+    /// or a git description; loads the libraries if they are not loaded yet.
+    /// </summary>
+    public static unsafe string VersionInfo =>
+        NativeString.Read(LibAVUtil.av_version_info()) ?? string.Empty;
+
+    /// <summary>
     /// Loads every library now, so a missing or mismatched install fails at startup with a clear
     /// message rather than at the first codec call.
     /// </summary>
@@ -95,6 +102,14 @@ public static class FFmpegLibraries
         {
             _ = Load(name);
         }
+    }
+
+    // The address of an exported symbol, for passing an FFmpeg function where FFmpeg takes a callback
+    // (av_log_default_callback, to restore FFmpeg's own logging).
+    internal static nint GetExport(string library, string symbol)
+    {
+        EnsureResolverInstalled();
+        return NativeLibrary.GetExport(Load(library), symbol);
     }
 
     // Called from the static constructor of every bindings class, so the resolver is in place before
