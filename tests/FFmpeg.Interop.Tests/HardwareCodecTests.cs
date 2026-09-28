@@ -291,13 +291,16 @@ public sealed class HardwareCodecTests
     [TestMethod]
     [TestCategory("RequiresVaapi")]
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]
-    public void VaapiAdapter_DerivesDrmAndVulkanOnTheSameGpu()
+    // FFmpeg derives VA-API and Vulkan from a DRM device, not the reverse: the DRM render node is the
+    // Linux identity of a GPU, and everything else is opened from it.
+    public void DrmAdapter_DerivesVaapiAndVulkanOnTheSameGpu()
     {
         GpuAdapter amd = Adapter(GpuVendor.Amd);
         Assert.IsNotNull(amd.RenderNode);
-        using HardwareDevice vaapi = HardwareDevice.Create(HardwareDeviceType.Vaapi, amd);
-        using HardwareDevice drm = vaapi.Derive(HardwareDeviceType.Drm);
+        using HardwareDevice drm = HardwareDevice.Create(HardwareDeviceType.Drm, amd);
+        using HardwareDevice vaapi = drm.Derive(HardwareDeviceType.Vaapi);
         using HardwareDevice vulkan = HardwareDevice.Create(HardwareDeviceType.Vulkan, amd);
+        _ = Assert.ThrowsExactly<FFmpegException>(() => vaapi.Derive(HardwareDeviceType.Drm));
 
         Assert.IsTrue(vaapi.TryGetVaapiDisplay(out nint display));
         Assert.AreNotEqual(0, display);
