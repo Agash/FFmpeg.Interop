@@ -33,8 +33,9 @@ well against the source with the `psnr` filter.
 
 Coverage is measured on the hand-written code; the generated bindings are excluded. The floor is 90%
 of lines and 80% of branches over CI's legs merged. The hardware paths only run on GPU machines, so
-a change to them comes with a `test-machine.ps1` run on the hardware it touches, and its figure in
-the pull request.
+a change to them comes with a `test-machine.ps1` run on the hardware it touches. Its report merges
+with CI's through `./eng/merge-coverage.ps1`, which normalises each machine's source paths so the
+platforms combine instead of being counted side by side.
 
 Name tests `{Method}_{Scenario}_{ExpectedResult}`. No `Thread.Sleep`. New behaviour needs a test, and
 a bug fix needs a test that fails before the fix.

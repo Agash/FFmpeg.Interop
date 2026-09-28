@@ -35,7 +35,8 @@ jobs:
           - { os: ubuntu-26.04, rid: linux-x64, filter: "TestCategory!=RequiresGpu", format: true }
           - { os: ubuntu-26.04-arm, rid: linux-arm64, filter: "TestCategory!=RequiresGpu&TestCategory!=RequiresVulkan", format: false }
           - { os: windows-latest, rid: win-x64, filter: "TestCategory!=RequiresGpu&TestCategory!=RequiresVulkan", format: false }
-          - { os: macos-26, rid: osx-arm64, filter: "TestCategory!=RequiresGpu&TestCategory!=RequiresVulkan", format: false }
+          # macOS runners are Apple-silicon VMs; VideoToolbox is tried there too.
+          - { os: macos-26, rid: osx-arm64, filter: "TestCategory!=RequiresNvidia&TestCategory!=RequiresAmf&TestCategory!=RequiresVaapi&TestCategory!=RequiresVulkan", format: false }
 
     steps:
       - uses: actions/checkout@v7
@@ -127,26 +128,24 @@ jobs:
           path: coverage
 
       - name: Merge and gate
-        shell: bash
+        shell: pwsh
         run: |
-          # Run once, pinned, without the tool manifest: the .NET 11 RC1 SDK fails to restore
-          # dotnet-coverage from a manifest on Linux runners.
-          dnx dotnet-coverage@18.11.2 --yes -- merge --output merged.cobertura.xml --output-format cobertura "coverage/**/*.cobertura.xml"
-          python3 - <<'PY'
-          import os, sys, xml.etree.ElementTree as ET
-
-          root = ET.parse('merged.cobertura.xml').getroot()
-          line = float(root.get('line-rate')) * 100
-          branch = float(root.get('branch-rate')) * 100
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write('### Coverage, all CI legs merged\n\nHand-written code only; the generated bindings are excluded.\n\n')
-              summary.write('| Metric | Covered | Total | Rate |\n| --- | ---: | ---: | ---: |\n')
-              summary.write(f"| Lines | {root.get('lines-covered')} | {root.get('lines-valid')} | {line:.1f}% |\n")
-              summary.write(f"| Branches | {root.get('branches-covered')} | {root.get('branches-valid')} | {branch:.1f}% |\n")
-          if line < 90 or branch < 80:
-              print(f'::error::Merged coverage {line:.1f}% lines / {branch:.1f}% branches is below the 90% / 80% floor.')
-              sys.exit(1)
-          PY
+          $reports = @(Get-ChildItem coverage -Recurse -Filter '*.cobertura.xml' | ForEach-Object FullName)
+          $totals = ./eng/merge-coverage.ps1 -Reports $reports -Output merged.cobertura.xml
+          @(
+            '### Coverage, all CI legs merged'
+            ''
+            'Hand-written code only; the generated bindings are excluded. GPU paths are covered by `eng/test-machine.ps1` on the GPU machines.'
+            ''
+            '| Metric | Covered | Total | Rate |'
+            '| --- | ---: | ---: | ---: |'
+            "| Lines | $($totals.LinesCovered) | $($totals.LinesValid) | $($totals.Lines.ToString('P1')) |"
+            "| Branches | $($totals.BranchesCovered) | $($totals.BranchesValid) | $($totals.Branches.ToString('P1')) |"
+          ) | Add-Content $env:GITHUB_STEP_SUMMARY
+          if ($totals.Lines -lt 0.90 -or $totals.Branches -lt 0.80) {
+            Write-Output "::error::Merged coverage $($totals.Lines.ToString('P1')) lines / $($totals.Branches.ToString('P1')) branches is below the 90% / 80% floor."
+            exit 1
+          }
 
       - uses: actions/upload-artifact@v7
         with:
