@@ -41,8 +41,22 @@ $suites = [ordered]@{
     RequiresVideoToolbox = [bool]$IsMacOS
 }
 
-# The generic GPU tests (RequiresGpu without a vendor) run wherever there is any GPU; RequiresVulkan
-# runs wherever a Vulkan driver exists, which every machine here has.
+# The Vulkan suite needs a Vulkan loader: Windows and Linux GPU drivers install one, macOS has one only
+# with MoltenVK. It is probed the way the tests will load it, not assumed.
+function Test-VulkanLoader {
+    $names = if ($IsWindows) { @('vulkan-1') }
+        elseif ($IsMacOS) { @('libvulkan.1.dylib', '/opt/homebrew/lib/libvulkan.1.dylib', '/usr/local/lib/libvulkan.1.dylib') }
+        else { @('libvulkan.so.1') }
+    foreach ($name in $names) {
+        $handle = [IntPtr]::Zero
+        if ([System.Runtime.InteropServices.NativeLibrary]::TryLoad($name, [ref]$handle)) { return $true }
+    }
+    return $false
+}
+
+$suites['RequiresVulkan'] = Test-VulkanLoader
+
+# The generic GPU tests (RequiresGpu without a vendor) run wherever there is any GPU.
 $exclusions = @($suites.GetEnumerator() | Where-Object { -not $_.Value } | ForEach-Object { "TestCategory!=$($_.Key)" })
 if ($vendors.Count -eq 0) { $exclusions += 'TestCategory!=RequiresGpu' }
 $filter = $exclusions -join '&'
