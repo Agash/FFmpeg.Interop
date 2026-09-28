@@ -9,6 +9,21 @@ public abstract record EncoderOptions
     /// <summary>The target bit rate in bits per second, or null for the codec's default rate control.</summary>
     public long? BitRate { get; init; }
 
+    /// <summary>
+    /// The peak bit rate the rate control may reach (<c>maxrate</c>), in bits per second. With
+    /// <see cref="BufferSize"/> it caps bursts, which matters when a network path has a fixed capacity.
+    /// </summary>
+    public long? MaxRate { get; init; }
+
+    /// <summary>The rate control buffer (VBV/HRD) size in bits (<c>bufsize</c>).</summary>
+    public int? BufferSize { get; init; }
+
+    /// <summary>
+    /// Output each packet as soon as its frame is encoded, without reordering delay
+    /// (<c>AV_CODEC_FLAG_LOW_DELAY</c>).
+    /// </summary>
+    public bool LowDelay { get; init; }
+
     /// <summary>Encoding threads; 0 lets FFmpeg choose.</summary>
     public int ThreadCount { get; init; }
 
@@ -83,6 +98,53 @@ public sealed unsafe class Encoder : CodecContext
     /// encoder accepts any.
     /// </summary>
     public int FrameSize => NativePointer->frame_size;
+
+    /// <summary>The current target bit rate in bits per second.</summary>
+    public long BitRate => NativePointer->bit_rate;
+
+    /// <summary>
+    /// Whether <see cref="SetRateControl"/> takes effect on this encoder. FFmpeg 9 applies rate control
+    /// changes between frames only in NVENC (<c>*_nvenc</c>) and libx264; the others read these settings
+    /// once, when opened, so a new rate there means a new encoder, opened at a key frame.
+    /// </summary>
+    public bool SupportsRateControlChanges =>
+        Codec.Name.EndsWith("_nvenc", StringComparison.Ordinal) || Codec.Name == "libx264";
+
+    /// <summary>
+    /// Changes the rate control for the frames sent from now on, as congestion control needs: FFmpeg's
+    /// encoders that support it compare these settings before each frame and reconfigure.
+    /// </summary>
+    /// <param name="bitRate">The target bit rate in bits per second.</param>
+    /// <param name="maxRate">The peak bit rate, or null to leave it.</param>
+    /// <param name="bufferSize">The rate control buffer size in bits, or null to leave it.</param>
+    /// <exception cref="NotSupportedException">
+    /// The encoder reads its rate control only when opened (<see cref="SupportsRateControlChanges"/>);
+    /// changing the fields would silently do nothing.
+    /// </exception>
+    public void SetRateControl(long bitRate, long? maxRate = null, int? bufferSize = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(bitRate);
+        if (!SupportsRateControlChanges)
+        {
+            throw new NotSupportedException(
+                $"{Codec.Name} applies rate control only when opened; open a new encoder at a key frame instead."
+            );
+        }
+
+        AVCodecContext* context = NativePointer;
+        context->bit_rate = bitRate;
+        if (maxRate is { } peak)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(peak, bitRate, nameof(maxRate));
+            context->rc_max_rate = peak;
+        }
+
+        if (bufferSize is { } size)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size, nameof(bufferSize));
+            context->rc_buffer_size = size;
+        }
+    }
 
     /// <summary>Opens a video encoder.</summary>
     /// <param name="codec">A video encoder implementation.</param>
@@ -224,9 +286,24 @@ public sealed unsafe class Encoder : CodecContext
                 context->bit_rate = bitRate;
             }
 
+            if (options.MaxRate is { } maxRate)
+            {
+                context->rc_max_rate = maxRate;
+            }
+
+            if (options.BufferSize is { } bufferSize)
+            {
+                context->rc_buffer_size = bufferSize;
+            }
+
             if (options.GlobalHeader)
             {
                 context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+            }
+
+            if (options.LowDelay)
+            {
+                context->flags |= AV_CODEC_FLAG_LOW_DELAY;
             }
 
             encoder.Open(options.CodecOptions);

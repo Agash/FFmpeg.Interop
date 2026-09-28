@@ -307,6 +307,265 @@ public sealed class HardwareCodecTests
         Assert.AreNotEqual(0, handles.Device);
     }
 
+    // Congestion control lowers the rate mid-stream; NVENC must apply it to the frames that follow.
+    [TestMethod]
+    [TestCategory("RequiresNvidia")]
+    public void Nvenc_SetRateControl_ChangesTheRateOfTheFollowingFrames()
+    {
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.Cuda,
+            Adapter(GpuVendor.Nvidia)
+        );
+        using Encoder encoder = Encoder.Create(
+            Codec.FindEncoder("h264_nvenc"),
+            new VideoEncoderOptions
+            {
+                Width = 640,
+                Height = 360,
+                PixelFormat = PixelFormat.Nv12,
+                TimeBase = new(1, 30),
+                FrameRate = new(30, 1),
+                BitRate = 8_000_000,
+                MaxRate = 8_000_000,
+                BufferSize = 4_000_000,
+                MaxBFrames = 0,
+                LowDelay = true,
+                HardwareDevice = device,
+                CodecOptions = new Dictionary<string, string> { ["rc"] = "cbr", ["tune"] = "ll" },
+            }
+        );
+        Assert.IsTrue(encoder.SupportsRateControlChanges);
+        using Frame frame = new();
+        using Packet packet = new();
+        Random noise = new(3);
+        long before = 0;
+        long after = 0;
+        for (int i = 0; i < 120; i++)
+        {
+            if (i == 60)
+            {
+                encoder.SetRateControl(500_000, 500_000, 250_000);
+                Assert.AreEqual(500_000, encoder.BitRate);
+            }
+
+            // Noise is incompressible, so the output size follows the rate control, not the content.
+            frame.AllocateVideo(640, 360, PixelFormat.Nv12);
+            ImagePlane luma = frame.GetWritablePlane(0);
+            for (int row = 0; row < luma.Height; row++)
+            {
+                noise.NextBytes(luma.GetRow(row));
+            }
+
+            frame.PresentationTimestamp = i;
+            foreach (Packet encoded in encoder.Encode(frame, packet))
+            {
+                // The first frames after the change still drain the old rate's buffer.
+                if (encoded.PresentationTimestamp < 60)
+                {
+                    before += encoded.Size;
+                }
+                else if (encoded.PresentationTimestamp >= 75)
+                {
+                    after += encoded.Size;
+                }
+            }
+        }
+
+        double beforeRate = before * 8.0 / 2.0; // 60 frames: two seconds.
+        double afterRate = after * 8.0 / 1.5; // 45 frames: a second and a half.
+        Assert.IsGreaterThan(
+            4.0,
+            beforeRate / afterRate,
+            $"{beforeRate / 1e6:F2} Mb/s before, {afterRate / 1e6:F2} Mb/s after."
+        );
+    }
+
+    [TestMethod]
+    [TestCategory("RequiresNvidia")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    public void CopyFromD3D11Texture_CopiesOnTheGpuAndRefusesAnotherDevicesTexture()
+    {
+        using HardwareDevice nvidia = HardwareDevice.Create(
+            HardwareDeviceType.D3D11VA,
+            Adapter(GpuVendor.Nvidia)
+        );
+        using HardwareFramePool capture = HardwareFramePool.Create(
+            nvidia,
+            PixelFormat.D3D11,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using HardwareFramePool encoderPool = HardwareFramePool.Create(
+            nvidia,
+            PixelFormat.D3D11,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using Frame source = new();
+        source.AllocateVideo(64, 48, PixelFormat.Nv12);
+        byte[] pixels = new byte[source.GetImageSize()];
+        new Random(11).NextBytes(pixels);
+        source.CopyImageFrom(pixels);
+        using Frame captured = new();
+        capture.Upload(source, captured);
+        Assert.IsTrue(captured.TryGetD3D11Texture(out D3D11Texture texture));
+
+        using Frame copy = new();
+        encoderPool.CopyFromD3D11Texture(texture.Texture, texture.ArraySlice, copy);
+        using Frame downloaded = new();
+        copy.TransferTo(downloaded);
+        byte[] back = new byte[downloaded.GetImageSize()];
+        _ = downloaded.CopyImageTo(back);
+        CollectionAssert.AreEqual(pixels, back);
+
+        // The same texture handed to a pool on the other GPU: a cross-device copy is undefined in D3D11.
+        using HardwareDevice amd = HardwareDevice.Create(
+            HardwareDeviceType.D3D11VA,
+            Adapter(GpuVendor.Amd)
+        );
+        using HardwareFramePool otherGpu = HardwareFramePool.Create(
+            amd,
+            PixelFormat.D3D11,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        _ = Assert.ThrowsExactly<ArgumentException>(() =>
+            otherGpu.CopyFromD3D11Texture(texture.Texture, texture.ArraySlice, copy)
+        );
+
+        // A texture in another format, or smaller than the pool, cannot fill its surfaces.
+        using HardwareFramePool p010 = HardwareFramePool.Create(
+            nvidia,
+            PixelFormat.D3D11,
+            PixelFormat.P010,
+            64,
+            48
+        );
+        using HardwareFramePool larger = HardwareFramePool.Create(
+            nvidia,
+            PixelFormat.D3D11,
+            PixelFormat.Nv12,
+            128,
+            96
+        );
+        _ = Assert.ThrowsExactly<ArgumentException>(() =>
+            p010.CopyFromD3D11Texture(texture.Texture, texture.ArraySlice, copy)
+        );
+        _ = Assert.ThrowsExactly<ArgumentException>(() =>
+            larger.CopyFromD3D11Texture(texture.Texture, texture.ArraySlice, copy)
+        );
+        _ = Assert.ThrowsExactly<ArgumentNullException>(() =>
+            encoderPool.CopyFromD3D11Texture(0, 0, copy)
+        );
+    }
+
+    // A PipeWire screencast hands over DMA-BUFs; they are imported as a DRM PRIME frame and mapped into
+    // the encoder's VA-API surfaces without a copy. The DMA-BUFs here come from exporting a VA-API
+    // surface, which gives descriptors exactly as a producer's would be.
+    [TestMethod]
+    [TestCategory("RequiresVaapi")]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    public void DrmPrimeImport_MapsDmaBufsIntoVaapiSurfaces()
+    {
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.Vaapi,
+            Adapter(GpuVendor.Amd)
+        );
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vaapi,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using Frame source = new();
+        source.AllocateVideo(64, 48, PixelFormat.Nv12);
+        byte[] pixels = new byte[source.GetImageSize()];
+        new Random(5).NextBytes(pixels);
+        source.CopyImageFrom(pixels);
+        using Frame producer = new();
+        pool.Upload(source, producer);
+
+        using Frame exported = new();
+        exported.PixelFormat = PixelFormat.DrmPrime;
+        producer.MapTo(exported, HardwareMapAccess.Read);
+        Assert.IsTrue(exported.TryGetDrmFrame(out DrmFrameDescriptor descriptor));
+        // The descriptor view is a ref struct over FFmpeg's memory, so it is read with plain loops.
+        List<DrmObject> objects = [];
+        for (int o = 0; o < descriptor.ObjectCount; o++)
+        {
+            objects.Add(descriptor.GetObject(o));
+        }
+
+        List<DrmLayer> layers = [];
+        for (int l = 0; l < descriptor.LayerCount; l++)
+        {
+            List<DrmPlane> planes = [];
+            for (int p = 0; p < descriptor.GetPlaneCount(l); p++)
+            {
+                planes.Add(descriptor.GetPlane(l, p));
+            }
+
+            layers.Add(new(descriptor.GetLayerFormat(l), planes));
+        }
+
+        using Frame imported = Frame.FromDrmPrime(new DrmPrimeImage(objects, layers), 64, 48);
+        using Frame surface = new();
+        imported.MapTo(pool, surface, HardwareMapAccess.Read);
+        Assert.IsTrue(surface.TryGetVaapiSurface(out _));
+
+        using Frame downloaded = new();
+        surface.TransferTo(downloaded);
+        byte[] back = new byte[downloaded.GetImageSize()];
+        _ = downloaded.CopyImageTo(back);
+        CollectionAssert.AreEqual(pixels, back);
+    }
+
+    [TestMethod]
+    [TestCategory("RequiresVideoToolbox")]
+    [System.Runtime.Versioning.SupportedOSPlatform("macos")]
+    public void WrapCVPixelBuffer_SharesThePixelBufferWithoutACopy()
+    {
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.VideoToolbox,
+            Adapter(GpuVendor.Apple)
+        );
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.VideoToolbox,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using Frame source = new();
+        source.AllocateVideo(64, 48, PixelFormat.Nv12);
+        byte[] pixels = new byte[source.GetImageSize()];
+        new Random(9).NextBytes(pixels);
+        source.CopyImageFrom(pixels);
+        using Frame producer = new();
+        pool.Upload(source, producer);
+        Assert.IsTrue(producer.TryGetCVPixelBuffer(out nint pixelBuffer));
+
+        using Frame wrapped = new();
+        pool.WrapCVPixelBuffer(pixelBuffer, wrapped);
+        producer.Reset();
+
+        Assert.IsTrue(wrapped.TryGetCVPixelBuffer(out nint shared));
+        Assert.AreEqual(pixelBuffer, shared);
+        using Frame downloaded = new();
+        wrapped.TransferTo(downloaded);
+        byte[] back = new byte[downloaded.GetImageSize()];
+        _ = downloaded.CopyImageTo(back);
+        CollectionAssert.AreEqual(
+            pixels,
+            back,
+            "The wrapped frame keeps the pixel buffer alive after its producer let go."
+        );
+    }
+
     internal static GpuAdapter Adapter(GpuVendor vendor)
     {
         IReadOnlyList<GpuAdapter> adapters = GpuAdapter.Enumerate();

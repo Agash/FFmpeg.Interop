@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using FFmpeg.Interop.Native;
 using static FFmpeg.Interop.Native.LibAVUtil;
@@ -51,6 +52,7 @@ public sealed unsafe class HardwareDevice : IDisposable
         IReadOnlyDictionary<string, string>? options = null
     )
     {
+        ThrowIfUnloadable(type);
         int result = TryCreateCore(type, device, options, out HardwareDevice? created);
         FFmpegError.ThrowIfError(result, "av_hwdevice_ctx_create");
         return created!;
@@ -185,6 +187,7 @@ public sealed unsafe class HardwareDevice : IDisposable
     /// <returns>The derived device.</returns>
     public HardwareDevice Derive(HardwareDeviceType type)
     {
+        ThrowIfUnloadable(type);
         AVBufferRef* derived = null;
         FFmpegError.ThrowIfError(av_hwdevice_ctx_create_derived(&derived, type, NativePointer, 0));
         return new(SafeBufferHandle.Own(derived, "av_hwdevice_ctx_create_derived"));
@@ -327,6 +330,33 @@ public sealed unsafe class HardwareDevice : IDisposable
 
     internal AVBufferRef* NewReference() => _reference.NewReference();
 
+    // FFmpeg builds for Linux commonly reach libva through a stub compiled into libavutil, which
+    // dlopen()s libva on first use and aborts the process when it cannot: a machine without the VA-API
+    // runtime would not get an error, it would lose the process. The same load is tried here first,
+    // through the same loader, where failing is an answer rather than an abort. Whether the file exists
+    // is not the same question: a library the loader refuses (missing dependencies) aborts all the same.
+    private static readonly Lazy<bool> s_libVaLoads = new(() =>
+        !OperatingSystem.IsLinux()
+        || (
+            NativeLibrary.TryLoad("libva.so.2", out _)
+            && NativeLibrary.TryLoad("libva-drm.so.2", out _)
+        )
+    );
+
+    private static bool UsesLibVa(HardwareDeviceType type) =>
+        type == HardwareDeviceType.Vaapi
+        || (OperatingSystem.IsLinux() && type == HardwareDeviceType.Qsv);
+
+    private static void ThrowIfUnloadable(HardwareDeviceType type)
+    {
+        if (UsesLibVa(type) && !s_libVaLoads.Value)
+        {
+            throw new NotSupportedException(
+                $"A {type} device needs the VA-API runtime (libva.so.2 and libva-drm.so.2), which cannot be loaded."
+            );
+        }
+    }
+
     private static int TryCreateCore(
         HardwareDeviceType type,
         string? device,
@@ -334,6 +364,12 @@ public sealed unsafe class HardwareDevice : IDisposable
         out HardwareDevice? created
     )
     {
+        if (UsesLibVa(type) && !s_libVaLoads.Value)
+        {
+            created = null;
+            return LibAVUtil.AVERROR(Errno.ENOSYS);
+        }
+
         AVBufferRef* reference = null;
         AVDictionary* dictionary = NativeOptions.Create(options);
         try

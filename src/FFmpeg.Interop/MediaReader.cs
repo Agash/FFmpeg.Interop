@@ -43,17 +43,28 @@ public sealed unsafe class MediaReader : IDisposable
     /// <summary>Opens a file or URL and reads enough of it to describe its streams.</summary>
     /// <param name="url">A path or a URL of a protocol FFmpeg supports.</param>
     /// <param name="options">Demuxer and protocol options. Unknown names are an error.</param>
+    /// <param name="format">
+    /// The input format's short name (<c>matroska</c>, <c>h264</c>, <c>lavfi</c>), or null to probe for
+    /// it. Needed for inputs that carry no signature of their own, such as raw elementary streams.
+    /// </param>
     /// <returns>The reader.</returns>
-    public static MediaReader Open(string url, IReadOnlyDictionary<string, string>? options = null)
+    public static MediaReader Open(
+        string url,
+        IReadOnlyDictionary<string, string>? options = null,
+        string? format = null
+    )
     {
         ArgumentNullException.ThrowIfNull(url);
+        AVInputFormat* inputFormat = format is null ? null : FindInputFormat(format);
         AVFormatContext* context = null;
         AVDictionary* dictionary = NativeOptions.Create(options);
         try
         {
             using (Utf8String native = new(url))
             {
-                FFmpegError.ThrowIfError(avformat_open_input(&context, native, null, &dictionary));
+                FFmpegError.ThrowIfError(
+                    avformat_open_input(&context, native, inputFormat, &dictionary)
+                );
             }
 
             SafeInputFormatHandle handle = SafeInputFormatHandle.Own(context);
@@ -73,6 +84,45 @@ public sealed unsafe class MediaReader : IDisposable
         {
             LibAVUtil.av_dict_free(&dictionary);
         }
+    }
+
+    /// <summary>
+    /// Opens a capture device through libavdevice: a camera or screen (<c>v4l2</c>, <c>dshow</c>,
+    /// <c>avfoundation</c>, <c>gdigrab</c>), a sound card (<c>alsa</c>, <c>pulse</c>), or a filter graph
+    /// source (<c>lavfi</c>).
+    /// </summary>
+    /// <param name="format">The device format's short name.</param>
+    /// <param name="device">The device, in the format's own terms: <c>/dev/video0</c>, <c>video=Camera</c>, <c>0:0</c>.</param>
+    /// <param name="options">Device options such as <c>video_size</c>, <c>framerate</c> or <c>input_format</c>.</param>
+    /// <returns>The reader.</returns>
+    public static MediaReader OpenDevice(
+        string format,
+        string device,
+        IReadOnlyDictionary<string, string>? options = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(format);
+        _ = s_devicesRegistered.Value;
+        return Open(device, options, format);
+    }
+
+    // libavdevice's formats are found by name only once registered, which is process-wide and idempotent.
+    private static readonly Lazy<bool> s_devicesRegistered = new(() =>
+    {
+        LibAVDevice.avdevice_register_all();
+        return true;
+    });
+
+    private static AVInputFormat* FindInputFormat(string format)
+    {
+        using Utf8String name = new(format);
+        AVInputFormat* found = av_find_input_format(name);
+        return found is not null
+            ? found
+            : throw new ArgumentException(
+                $"FFmpeg has no input format '{format}'.",
+                nameof(format)
+            );
     }
 
     /// <summary>The best stream of a kind, as FFmpeg ranks them.</summary>

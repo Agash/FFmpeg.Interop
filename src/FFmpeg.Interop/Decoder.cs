@@ -10,7 +10,7 @@ public sealed record DecoderOptions
 {
     /// <summary>
     /// Decode on this device. The decoder outputs hardware frames in the device's format; use
-    /// <see cref="Frame.TransferTo"/> or <see cref="Frame.MapTo"/> to get at the pixels.
+    /// <see cref="Frame.TransferTo"/> or <see cref="Frame.MapTo(Frame, HardwareMapAccess)"/> to get at the pixels.
     /// </summary>
     public HardwareDevice? HardwareDevice { get; init; }
 

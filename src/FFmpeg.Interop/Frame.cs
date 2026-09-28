@@ -125,6 +125,17 @@ public sealed unsafe partial class Frame : IDisposable
                 : NativePointer->flags & ~AV_FRAME_FLAG_KEY;
     }
 
+    /// <summary>
+    /// The picture type. Decoders report what they decoded; for an encoder, setting
+    /// <see cref="PictureType.I"/> on a frame forces it to start a key frame, which is how a receiver's
+    /// request for a new key frame (an RTCP PLI or FIR) is answered.
+    /// </summary>
+    public PictureType PictureType
+    {
+        get => (PictureType)NativePointer->pict_type;
+        set => NativePointer->pict_type = (AVPictureType)value;
+    }
+
     /// <summary>Whether the frame holds picture or sample data.</summary>
     public bool HasData => NativePointer->buf.e0 is not null;
 
@@ -433,6 +444,61 @@ public sealed unsafe partial class Frame : IDisposable
         FFmpegError.ThrowIfError(
             av_hwframe_map(destination.NativePointer, NativePointer, (int)access)
         );
+    }
+
+    /// <summary>
+    /// Maps this frame into a surface of <paramref name="pool"/>'s device without copying: a DMA-BUF
+    /// imported with <see cref="FromDrmPrime"/> into a VA-API or Vulkan surface an encoder takes, or a
+    /// D3D11 surface into QSV.
+    /// </summary>
+    /// <param name="pool">The pool whose device and format the mapping is for.</param>
+    /// <param name="destination">The frame to receive the mapping; its previous content is released.</param>
+    /// <param name="access">How the mapping will be used.</param>
+    public void MapTo(HardwareFramePool pool, Frame destination, HardwareMapAccess access)
+    {
+        ArgumentNullException.ThrowIfNull(pool);
+        ArgumentNullException.ThrowIfNull(destination);
+        AVFrame* target = destination.NativePointer;
+        av_frame_unref(target);
+        target->format = (int)pool.Format.Value;
+        target->hw_frames_ctx = pool.NewReference();
+        FFmpegError.ThrowIfError(av_hwframe_map(target, NativePointer, (int)access));
+        FFmpegError.ThrowIfError(av_frame_copy_props(target, NativePointer));
+    }
+
+    /// <summary>
+    /// A DRM PRIME frame over DMA-BUFs another component produced (a PipeWire screencast, a V4L2
+    /// camera), for mapping into an encoder's surfaces with <see cref="MapTo(HardwareFramePool, Frame, HardwareMapAccess)"/>
+    /// without a copy. The frame references the file descriptors and does not close them: keep them
+    /// open until the frame and every mapping of it are released.
+    /// </summary>
+    /// <param name="image">The DMA-BUF objects and how the picture is laid out in them.</param>
+    /// <param name="width">The picture width.</param>
+    /// <param name="height">The picture height.</param>
+    /// <returns>The frame.</returns>
+    public static Frame FromDrmPrime(DrmPrimeImage image, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        AVDRMFrameDescriptor descriptor = image.ToNative();
+
+        // FFmpeg's own DRM frames carry the descriptor in buf[0], and av_hwframe_map looks for it there.
+        Frame result = new();
+        AVFrame* frame = result._handle.Pointer;
+        frame->buf.e0 = av_buffer_allocz((nuint)sizeof(AVDRMFrameDescriptor));
+        if (frame->buf.e0 is null)
+        {
+            result.Dispose();
+            FFmpegError.ThrowOutOfMemory("av_buffer_allocz");
+        }
+
+        *(AVDRMFrameDescriptor*)frame->buf.e0->data = descriptor;
+        frame->data[0] = frame->buf.e0->data;
+        frame->format = (int)AVPixelFormat.AV_PIX_FMT_DRM_PRIME;
+        frame->width = width;
+        frame->height = height;
+        return result;
     }
 
     /// <inheritdoc/>

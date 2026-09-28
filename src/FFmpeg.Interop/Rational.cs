@@ -39,6 +39,19 @@ public readonly record struct Rational(int Numerator, int Denominator)
     public static long Rescale(long value, Rational source, Rational destination) =>
         LibAVUtil.av_rescale_q(value, source, destination);
 
+    /// <summary>Converts a timestamp between time bases with a chosen rounding (<c>av_rescale_q_rnd</c>).</summary>
+    /// <param name="value">The timestamp in <paramref name="source"/> units.</param>
+    /// <param name="source">The time base it is in.</param>
+    /// <param name="destination">The time base to convert to.</param>
+    /// <param name="rounding">How to round a result that falls between two units.</param>
+    /// <returns>The timestamp in <paramref name="destination"/> units.</returns>
+    public static long Rescale(
+        long value,
+        Rational source,
+        Rational destination,
+        Rounding rounding
+    ) => LibAVUtil.av_rescale_q_rnd(value, source, destination, (AVRounding)rounding);
+
     /// <summary>A timestamp in this time base as a <see cref="TimeSpan"/>.</summary>
     /// <param name="value">The timestamp.</param>
     /// <returns>The duration it represents.</returns>
