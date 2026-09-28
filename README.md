@@ -55,6 +55,23 @@ An application that already owns a device (a capture session, a renderer) hands 
 `HardwareDevice.FromD3D11Device` or `FromD3D12Device`, and encoders then take its textures without a
 copy. `HardwareFramePool.Of(frame)` lets an encoder take a hardware decoder's surfaces directly.
 
+## Real-time encoding
+
+What a sender needs from an encoder is there without dropping to the native layer:
+
+- **Key frames on demand:** `frame.PictureType = PictureType.I` makes the next frame intra, the answer to
+  a receiver's PLI.
+- **Rate control:** `BitRate`, `MaxRate`, `BufferSize` and `LowDelay` on open, and
+  `Encoder.SetRateControl` mid-stream for congestion control, on the encoders FFmpeg reconfigures
+  (NVENC, libx264; `SupportsRateControlChanges` says which, instead of changes being silently ignored).
+- **Zero-copy inputs:** `Frame.FromDrmPrime` imports DMA-BUFs (a PipeWire screencast, a V4L2 camera) and
+  `Frame.MapTo(pool, ...)` maps them into VA-API or Vulkan surfaces; `HardwareFramePool.CopyFromD3D11Texture`
+  copies a captured texture into an encoder's pool on the GPU; `HardwareFramePool.WrapCVPixelBuffer`
+  hands an IOSurface-backed pixel buffer to VideoToolbox.
+- **Capture devices:** `MediaReader.OpenDevice("v4l2", "/dev/video0")`, `dshow`, `avfoundation`, `lavfi`.
+- **Logging:** `FFmpegLogging.UseLoggerFactory(loggerFactory)` routes `av_log` to `ILogger`, one
+  category per FFmpeg component class with the codec or format name as a property.
+
 ## Building
 
 ```bash
