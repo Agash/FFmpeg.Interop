@@ -11,17 +11,18 @@ public sealed class HardwareTests
 {
     public TestContext TestContext { get; set; } = null!;
 
-    private static HardwareDeviceType PlatformType =>
-        OperatingSystem.IsWindows() ? HardwareDeviceType.D3D11VA
-        : OperatingSystem.IsMacOS() ? HardwareDeviceType.VideoToolbox
-        : HardwareDeviceType.Vaapi;
+    private static HardwareDeviceType PlatformType => TestNatives.PlatformVideoApi;
 
     [TestInitialize]
     public void RequireNatives() => TestNatives.Require();
 
     [TestMethod]
     public void Compiled_IncludesThisPlatformsVideoApi() =>
-        Assert.Contains(PlatformType, HardwareDeviceType.Compiled.ToList());
+        Assert.Contains(
+            PlatformType,
+            HardwareDeviceType.Compiled.ToList(),
+            $"Compiled: {string.Join(", ", HardwareDeviceType.Compiled)}."
+        );
 
     [TestMethod]
     public void Create_DeviceThatDoesNotExist_ThrowsAndTryCreateReturnsFalse()

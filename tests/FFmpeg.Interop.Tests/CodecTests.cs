@@ -56,10 +56,7 @@ public sealed class CodecTests
     public void HardwareConfigs_ListTheDeviceTypesADecoderCanUse()
     {
         IReadOnlyList<HardwareConfig> configs = Codec.FindDecoder(CodecId.H264).HardwareConfigs;
-        HardwareDeviceType expected =
-            OperatingSystem.IsWindows() ? HardwareDeviceType.D3D11VA
-            : OperatingSystem.IsMacOS() ? HardwareDeviceType.VideoToolbox
-            : HardwareDeviceType.Vaapi;
+        HardwareDeviceType expected = TestNatives.PlatformVideoApi;
 
         HardwareConfig config = configs.Single(c => c.DeviceType == expected);
 

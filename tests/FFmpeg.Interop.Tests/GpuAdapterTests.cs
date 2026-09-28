@@ -122,11 +122,8 @@ public sealed class GpuAdapterTests
     public void FindDecoderForDevice_Av1_SkipsTheSoftwareOnlyPreferredDecoder()
     {
         TestNatives.Require();
-        // The platform's own video API: every FFmpeg build for it has that hwaccel for AV1 and H.264.
-        HardwareDeviceType device =
-            OperatingSystem.IsMacOS() ? HardwareDeviceType.VideoToolbox
-            : OperatingSystem.IsWindows() ? HardwareDeviceType.D3D11VA
-            : HardwareDeviceType.Vaapi;
+        // The platform's own video API: the pinned builds have its hwaccel for AV1 and H.264.
+        HardwareDeviceType device = TestNatives.PlatformVideoApi;
         Assert.IsFalse(
             Codec.FindDecoder(CodecId.Av1).SupportsDevice(device),
             "The preferred AV1 decoder is libdav1d."

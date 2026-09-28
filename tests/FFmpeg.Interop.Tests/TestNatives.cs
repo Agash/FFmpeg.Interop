@@ -65,6 +65,17 @@ public static class TestNatives
         Assert.Fail(message);
     }
 
+    /// <summary>
+    /// The video API each pinned FFmpeg build compiles in for its platform: D3D11VA on Windows,
+    /// VideoToolbox on macOS, VA-API on Linux x64. BtbN's Linux arm64 builds carry no VA-API; their
+    /// hardware video path is Vulkan.
+    /// </summary>
+    public static HardwareDeviceType PlatformVideoApi =>
+        OperatingSystem.IsWindows() ? HardwareDeviceType.D3D11VA
+        : OperatingSystem.IsMacOS() ? HardwareDeviceType.VideoToolbox
+        : RuntimeInformation.OSArchitecture == Architecture.Arm64 ? HardwareDeviceType.Vulkan
+        : HardwareDeviceType.Vaapi;
+
     /// <summary>Fails the calling test with a clear reason when no FFmpeg build was fetched.</summary>
     public static void Require() => _ = RequireRoot();
 
