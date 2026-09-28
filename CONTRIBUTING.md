@@ -35,7 +35,7 @@ Coverage is measured on the hand-written code; the generated bindings are exclud
 of lines and 80% of branches over everything that runs: CI's legs merged with the GPU machines'
 reports from `./eng/test-machine.ps1`, combined by `./eng/merge-coverage.ps1` (which normalises each
 machine's source paths, so the platforms combine instead of being counted side by side). CI alone
-cannot run the GPU paths, so it gates its own merged legs at 85% / 80%; a change to a GPU path comes
+cannot run the GPU paths, so it gates its own merged legs at 84% / 80%; a change to a GPU path comes
 with a `test-machine.ps1` run on the hardware it touches.
 
 `TestCategory("RequiresHardwareDecoder")` marks the bit-exact hardware decode comparisons. Every GPU
