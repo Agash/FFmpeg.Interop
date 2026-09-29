@@ -41,6 +41,55 @@ public static unsafe class VideoToolboxExtensions
                 (void*)pixelBuffer
             );
         }
+
+        /// <summary>
+        /// Wraps an <c>IOSurfaceRef</c> (a Syphon frame, a capture session's or a Metal texture's surface)
+        /// as a VideoToolbox frame of this pool, without copying, for a VideoToolbox encoder: a
+        /// <c>CVPixelBuffer</c> over the surface's memory, which the frame holds until FFmpeg drops its
+        /// last reference.
+        /// </summary>
+        /// <param name="surface">
+        /// The <c>IOSurfaceRef</c>, of the pool's size, in the CoreVideo format of the pool's software
+        /// format (<c>'BGRA'</c> for <see cref="PixelFormat.Bgra"/>, <c>'420v'</c> for
+        /// <see cref="PixelFormat.Nv12"/>).
+        /// </param>
+        /// <param name="destination">The frame to receive it; its previous content is released.</param>
+        public void WrapIOSurface(nint surface, Frame destination)
+        {
+            if (surface == 0)
+            {
+                throw new ArgumentNullException(nameof(surface));
+            }
+
+            ArgumentNullException.ThrowIfNull(destination);
+            if (pool.Format != PixelFormat.VideoToolbox)
+            {
+                throw new InvalidOperationException(
+                    $"The pool holds {pool.Format} surfaces, not CVPixelBuffers."
+                );
+            }
+
+            uint expected = CoreVideo.PixelFormatOf(pool.SoftwareFormat);
+            (int width, int height, uint format) = CoreVideo.Describe(surface);
+            if (width != pool.Width || height != pool.Height || format != expected)
+            {
+                throw new ArgumentException(
+                    $"The surface is {width}x{height} '{CoreVideo.FourCC(format)}'; the pool needs {pool.Width}x{pool.Height} '{CoreVideo.FourCC(expected)}' ({pool.SoftwareFormat}).",
+                    nameof(surface)
+                );
+            }
+
+            nint pixelBuffer = CoreVideo.CreatePixelBuffer(surface);
+            try
+            {
+                pool.WrapCVPixelBuffer(pixelBuffer, destination);
+            }
+            finally
+            {
+                // The frame took its own reference.
+                CoreFoundation.ReleaseReference(pixelBuffer);
+            }
+        }
     }
 
     extension(Frame frame)

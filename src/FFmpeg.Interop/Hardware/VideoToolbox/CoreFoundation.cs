@@ -32,6 +32,9 @@ internal static unsafe partial class CoreFoundation
         return buffer;
     }
 
+    // Drops a reference the caller holds.
+    public static void ReleaseReference(nint value) => CFRelease(value);
+
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void Release(void* opaque, byte* data) => CFRelease((nint)opaque);
 

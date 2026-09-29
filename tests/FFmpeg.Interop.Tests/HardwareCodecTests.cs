@@ -766,6 +766,63 @@ public sealed class HardwareCodecTests
         );
     }
 
+    [TestMethod]
+    [TestCategory("RequiresVideoToolbox")]
+    [System.Runtime.Versioning.SupportedOSPlatform("macos")]
+    public void WrapIOSurface_SharesTheSurfaceWithoutACopy()
+    {
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.VideoToolbox,
+            Adapter(GpuVendor.Apple)
+        );
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.VideoToolbox,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using Frame source = new();
+        source.AllocateVideo(64, 48, PixelFormat.Nv12);
+        byte[] pixels = new byte[source.GetImageSize()];
+        new Random(11).NextBytes(pixels);
+        source.CopyImageFrom(pixels);
+        using Frame producer = new();
+        pool.Upload(source, producer);
+        Assert.IsTrue(producer.TryGetCVPixelBuffer(out nint pixelBuffer));
+        nint surface = CVPixelBufferGetIOSurface(pixelBuffer);
+        Assert.AreNotEqual(0, surface, "VideoToolbox pools are IOSurface-backed.");
+
+        using Frame wrapped = new();
+        pool.WrapIOSurface(surface, wrapped);
+        Assert.IsTrue(wrapped.TryGetCVPixelBuffer(out nint shared));
+        Assert.AreEqual(surface, CVPixelBufferGetIOSurface(shared));
+        using Frame downloaded = new();
+        wrapped.TransferTo(downloaded);
+        byte[] back = new byte[downloaded.GetImageSize()];
+        _ = downloaded.CopyImageTo(back);
+        CollectionAssert.AreEqual(pixels, back);
+
+        using HardwareFramePool smaller = HardwareFramePool.Create(
+            device,
+            PixelFormat.VideoToolbox,
+            PixelFormat.Nv12,
+            32,
+            32
+        );
+        using Frame refused = new();
+        ArgumentException error = Assert.ThrowsExactly<ArgumentException>(() =>
+            smaller.WrapIOSurface(surface, refused)
+        );
+        StringAssert.Contains(error.Message, "64x48 '420v'");
+        _ = Assert.ThrowsExactly<ArgumentNullException>(() => pool.WrapIOSurface(0, refused));
+    }
+
+    [System.Runtime.InteropServices.DllImport(
+        "/System/Library/Frameworks/CoreVideo.framework/CoreVideo"
+    )]
+    private static extern nint CVPixelBufferGetIOSurface(nint pixelBuffer);
+
     internal static GpuAdapter Adapter(GpuVendor vendor)
     {
         IReadOnlyList<GpuAdapter> adapters = GpuAdapter.Enumerate();
