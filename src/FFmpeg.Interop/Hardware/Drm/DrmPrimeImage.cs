@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using FFmpeg.Interop.Native;
 
 namespace FFmpeg.Interop;
@@ -10,7 +11,7 @@ namespace FFmpeg.Interop;
 /// </summary>
 /// <param name="Objects">The DMA-BUF objects, at most four.</param>
 /// <param name="Layers">The layers, at most four, each with at most four planes.</param>
-public sealed record DrmPrimeImage(
+public sealed partial record DrmPrimeImage(
     ImmutableArray<DrmObject> Objects,
     ImmutableArray<DrmLayer> Layers
 )
@@ -40,7 +41,7 @@ public sealed record DrmPrimeImage(
             native.objects[i] = new AVDRMObjectDescriptor
             {
                 fd = dmaBuf.FileDescriptor,
-                size = (nuint)dmaBuf.Size,
+                size = (nuint)(dmaBuf.Size > 0 ? dmaBuf.Size : SizeOf(dmaBuf.FileDescriptor)),
                 format_modifier = dmaBuf.Modifier,
             };
         }
@@ -79,6 +80,28 @@ public sealed record DrmPrimeImage(
 
         return native;
     }
+
+    // A DMA-BUF's size, which importers need: seeking to its end reports it (the kernel's documented
+    // way to size a dma-buf), and leaves the descriptor usable.
+    private static long SizeOf(int fileDescriptor)
+    {
+        long size = OperatingSystem.IsLinux() ? lseek(fileDescriptor, 0, SeekEnd) : -1;
+        if (size <= 0)
+        {
+            throw new ArgumentException(
+                $"The size of DMA-BUF {fileDescriptor} is not given and cannot be read from it."
+            );
+        }
+
+        _ = lseek(fileDescriptor, 0, SeekSet);
+        return size;
+    }
+
+    private const int SeekSet = 0;
+    private const int SeekEnd = 2;
+
+    [LibraryImport("libc", SetLastError = true)]
+    private static partial long lseek(int fileDescriptor, long offset, int whence);
 }
 
 /// <summary>One layer of a DRM PRIME image: a DRM format and the planes that make it up.</summary>
@@ -87,8 +110,8 @@ public sealed record DrmPrimeImage(
 public sealed record DrmLayer(uint Format, ImmutableArray<DrmPlane> Planes);
 
 /// <summary>A DMA-BUF object: a file descriptor and its size and layout modifier.</summary>
-/// <param name="FileDescriptor">The DMA-BUF file descriptor, owned by the frame.</param>
-/// <param name="Size">The size of the object in bytes.</param>
+/// <param name="FileDescriptor">The DMA-BUF file descriptor.</param>
+/// <param name="Size">The size of the object in bytes; zero to read it from the descriptor when importing.</param>
 /// <param name="Modifier">The DRM format modifier (tiling/compression layout).</param>
 public readonly record struct DrmObject(int FileDescriptor, long Size, ulong Modifier);
 
