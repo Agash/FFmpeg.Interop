@@ -35,7 +35,19 @@ internal static unsafe class D3D12
     // at its value before reading the resource, then signals the next value on that same fence, so the
     // producer's fence would have its timeline advanced by FFmpeg. The fence reaches 1 when the work
     // submitted to producerQueue so far completes, or at once without a queue.
-    public static AVBufferRef* WrapResource(nint device, nint resource, nint producerQueue)
+    public static AVBufferRef* WrapResource(nint device, nint resource, nint producerQueue) =>
+        WrapResource(device, resource, producerQueue, readyFence: 0, readyValue: 0);
+
+    // As above, ready once readyFence reaches readyValue instead: producerQueue is then a queue of the
+    // pool's own that waits for the producer's fence on the GPU and signals the frame's fence, so the
+    // producer's timeline is only read, never advanced.
+    public static AVBufferRef* WrapResource(
+        nint device,
+        nint resource,
+        nint producerQueue,
+        nint readyFence,
+        ulong readyValue
+    )
     {
         AVD3D12VAFrame* frame = (AVD3D12VAFrame*)av_mallocz((nuint)sizeof(AVD3D12VAFrame));
         if (frame is null)
@@ -66,7 +78,12 @@ internal static unsafe class D3D12
 
             frame->sync_ctx.@event = (void*)completion.Value;
             frame->sync_ctx.fence_value = 1;
-            if (producerQueue != 0)
+            if (readyFence != 0)
+            {
+                ((ID3D12CommandQueue*)producerQueue)->Wait((ID3D12Fence*)readyFence, readyValue);
+                ((ID3D12CommandQueue*)producerQueue)->Signal(fence, 1);
+            }
+            else if (producerQueue != 0)
             {
                 ((ID3D12CommandQueue*)producerQueue)->Signal(fence, 1);
             }
@@ -99,6 +116,22 @@ internal static unsafe class D3D12
 
         return buffer;
     }
+
+    // A command queue on a device that only waits and signals fences, for ordering one queue's work after
+    // another's without the CPU.
+    public static nint CreateOrderingQueue(nint device)
+    {
+        D3D12_COMMAND_QUEUE_DESC description = new()
+        {
+            Type = D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_COMPUTE,
+        };
+        Guid iid = ID3D12CommandQueue.IID_Guid;
+        void* queue;
+        ((ID3D12Device*)device)->CreateCommandQueue(&description, &iid, &queue);
+        return (nint)queue;
+    }
+
+    public static void Release(nint unknown) => _ = ((ID3D12DeviceChild*)unknown)->Release();
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void ReleaseDeviceCallback(AVHWDeviceContext* context)

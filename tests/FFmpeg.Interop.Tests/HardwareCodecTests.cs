@@ -438,6 +438,89 @@ public sealed class HardwareCodecTests
         }
     }
 
+    // A texture that is ready when another component's fence reaches a value: the frame's own fence
+    // follows the producer's on the GPU, and the producer's timeline is left where it was.
+    [TestMethod]
+    [TestCategory("RequiresNvidia")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    public unsafe void WrapD3D12Texture_WithAReadyFence_FollowsItWithoutAdvancingIt()
+    {
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.D3D12VA,
+            Adapter(GpuVendor.Nvidia)
+        );
+        Assert.IsTrue(device.TryGetD3D12(out D3D12Device objects));
+        using HardwareFramePool producer = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D12,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D12,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using Frame source = new();
+        source.AllocateVideo(64, 48, PixelFormat.Nv12);
+        byte[] pixels = new byte[source.GetImageSize()];
+        new Random(17).NextBytes(pixels);
+        source.CopyImageFrom(pixels);
+        using Frame rendered = new();
+        producer.Upload(source, rendered);
+        Assert.IsTrue(rendered.TryGetD3D12Texture(out D3D12Texture texture));
+
+        ID3D12Device* d3d12 = (ID3D12Device*)objects.Device;
+        d3d12->CreateFence(
+            0,
+            D3D12_FENCE_FLAGS.D3D12_FENCE_FLAG_NONE,
+            out ID3D12Fence* producerFence
+        );
+        try
+        {
+            using Frame wrapped = new();
+            pool.WrapD3D12Texture(texture.Resource, (nint)producerFence, 5, wrapped);
+            Assert.IsTrue(wrapped.TryGetD3D12Texture(out D3D12Texture frame));
+            ID3D12Fence* ready = (ID3D12Fence*)frame.Fence;
+            Assert.AreNotEqual(
+                (nint)producerFence,
+                frame.Fence,
+                "The producer's fence was taken over."
+            );
+            Assert.AreEqual(
+                0UL,
+                ready->GetCompletedValue(),
+                "The frame was ready before its producer."
+            );
+
+            producerFence->Signal(5);
+            SpinWait.SpinUntil(
+                () => ready->GetCompletedValue() >= frame.FenceValue,
+                TimeSpan.FromSeconds(10)
+            );
+            Assert.AreEqual(frame.FenceValue, ready->GetCompletedValue());
+
+            using Frame back = new();
+            wrapped.TransferTo(back);
+            byte[] downloaded = new byte[back.GetImageSize()];
+            _ = back.CopyImageTo(downloaded);
+            CollectionAssert.AreEqual(pixels, downloaded);
+            Assert.AreEqual(
+                5UL,
+                producerFence->GetCompletedValue(),
+                "The producer's fence was advanced."
+            );
+        }
+        finally
+        {
+            producerFence->Signal(5);
+            _ = producerFence->Release();
+        }
+    }
+
     [TestMethod]
     [TestCategory("RequiresNvidia")]
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]

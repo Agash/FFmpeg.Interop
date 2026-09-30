@@ -10,6 +10,8 @@ namespace FFmpeg.Interop;
 public sealed unsafe class HardwareFramePool : IDisposable
 {
     private readonly SafeBufferHandle _reference;
+    private readonly Lock _gate = new();
+    private IDisposable? _attachment;
 
     private HardwareFramePool(SafeBufferHandle reference) => _reference = reference;
 
@@ -135,7 +137,27 @@ public sealed unsafe class HardwareFramePool : IDisposable
     }
 
     /// <inheritdoc/>
-    public void Dispose() => _reference.Dispose();
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            _attachment?.Dispose();
+            _attachment = null;
+        }
+
+        _reference.Dispose();
+    }
+
+    // Per-pool state an import needs, created on first use and released with the pool.
+    internal T Attachment<T>(Func<HardwareFramePool, T> create)
+        where T : class, IDisposable
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_reference.IsClosed, this);
+            return _attachment as T ?? (T)(_attachment = create(this));
+        }
+    }
 
     internal AVBufferRef* NewReference() => _reference.NewReference();
 

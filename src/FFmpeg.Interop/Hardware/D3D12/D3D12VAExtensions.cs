@@ -104,28 +104,7 @@ public static unsafe class D3D12VAExtensions
         /// </param>
         public void WrapD3D12Texture(nint resource, nint producerQueue, Frame destination)
         {
-            if (resource == 0)
-            {
-                throw new ArgumentNullException(nameof(resource));
-            }
-
-            ArgumentNullException.ThrowIfNull(destination);
-            if (pool.Format != PixelFormat.D3D12)
-            {
-                throw new InvalidOperationException(
-                    $"The pool holds {pool.Format} surfaces, not D3D12 resources."
-                );
-            }
-
-            nint device = (nint)((AVD3D12VADeviceContext*)pool.Context->device_ctx->hwctx)->device;
-            if (D3D12.GetDevice(resource) != device)
-            {
-                throw new ArgumentException(
-                    "The resource belongs to another D3D12 device; open the pool's device from the application's device.",
-                    nameof(resource)
-                );
-            }
-
+            nint device = CheckWrap(pool, resource, destination);
             if (producerQueue != 0 && D3D12.GetDevice(producerQueue) != device)
             {
                 throw new ArgumentException(
@@ -134,26 +113,101 @@ public static unsafe class D3D12VAExtensions
                 );
             }
 
-            D3D12_RESOURCE_DESC description = D3D12.GetDescription(resource);
-            int format = ((AVD3D12VAFramesContext*)pool.Context->hwctx)->format;
-            if (
-                description.Dimension != D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D
-                || description.DepthOrArraySize != 1
-                || description.MipLevels != 1
-                || (int)description.Format != format
-                || description.Width != (ulong)pool.Width
-                || description.Height != (uint)pool.Height
-            )
-            {
-                throw new ArgumentException(
-                    $"The resource is a {description.Dimension} of {description.Width}x{description.Height}x{description.DepthOrArraySize} with {description.MipLevels} mip levels in DXGI format {(int)description.Format}; the pool needs a single 2D texture of {pool.Width}x{pool.Height} in format {format}.",
-                    nameof(resource)
-                );
-            }
-
             AVBufferRef* buffer = D3D12.WrapResource(device, resource, producerQueue);
             pool.Adopt(destination, buffer, 0, buffer->data);
         }
+
+        /// <summary>
+        /// Makes an application's Direct3D 12 texture a frame of this pool, as
+        /// the producer-queue overload does, for a texture that is ready when a
+        /// fence reaches a value: another component's output, such as a decoded frame. The encoder waits
+        /// for the fence on the GPU; the producer's fence is only waited on, never signalled.
+        /// </summary>
+        /// <param name="resource">The <c>ID3D12Resource*</c>, as for the producer-queue overload.</param>
+        /// <param name="readyFence">The <c>ID3D12Fence*</c> on the pool's device that marks the texture ready.</param>
+        /// <param name="readyValue">The value the fence reaches when it is.</param>
+        /// <param name="destination">The frame to receive the texture; its previous content is released.</param>
+        public void WrapD3D12Texture(
+            nint resource,
+            nint readyFence,
+            ulong readyValue,
+            Frame destination
+        )
+        {
+            if (readyFence == 0)
+            {
+                throw new ArgumentNullException(nameof(readyFence));
+            }
+
+            nint device = CheckWrap(pool, resource, destination);
+            if (D3D12.GetDevice(readyFence) != device)
+            {
+                throw new ArgumentException(
+                    "The fence belongs to another D3D12 device than the pool's.",
+                    nameof(readyFence)
+                );
+            }
+
+            D3D12OrderingQueue ordering = pool.Attachment(static p => new D3D12OrderingQueue(
+                DeviceOf(p)
+            ));
+            AVBufferRef* buffer = D3D12.WrapResource(
+                device,
+                resource,
+                ordering.Queue,
+                readyFence,
+                readyValue
+            );
+            pool.Adopt(destination, buffer, 0, buffer->data);
+        }
+    }
+
+    private static nint DeviceOf(HardwareFramePool pool) =>
+        (nint)((AVD3D12VADeviceContext*)pool.Context->device_ctx->hwctx)->device;
+
+    // The checks every wrap makes; returns the pool's device.
+    private static nint CheckWrap(HardwareFramePool pool, nint resource, Frame destination)
+    {
+        if (resource == 0)
+        {
+            throw new ArgumentNullException(nameof(resource));
+        }
+
+        ArgumentNullException.ThrowIfNull(destination);
+        if (pool.Format != PixelFormat.D3D12)
+        {
+            throw new InvalidOperationException(
+                $"The pool holds {pool.Format} surfaces, not D3D12 resources."
+            );
+        }
+
+        nint device = DeviceOf(pool);
+        if (D3D12.GetDevice(resource) != device)
+        {
+            throw new ArgumentException(
+                "The resource belongs to another D3D12 device; open the pool's device from the application's device.",
+                nameof(resource)
+            );
+        }
+
+        D3D12_RESOURCE_DESC description = D3D12.GetDescription(resource);
+        int format = ((AVD3D12VAFramesContext*)pool.Context->hwctx)->format;
+        if (
+            description.Dimension != D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D
+            || description.DepthOrArraySize != 1
+            || description.MipLevels != 1
+            || (int)description.Format != format
+            || description.Width != (ulong)pool.Width
+            || description.Height != (uint)pool.Height
+        )
+        {
+            throw new ArgumentException(
+                $"The resource is a {description.Dimension} of {description.Width}x{description.Height}x{description.DepthOrArraySize} with {description.MipLevels} mip levels in DXGI format {(int)description.Format}; the pool needs a single 2D texture of {pool.Width}x{pool.Height} in format {format}.",
+                nameof(resource)
+            );
+        }
+
+        return device;
     }
 
     extension(Frame frame)
@@ -202,3 +256,12 @@ public readonly record struct D3D12Texture(
     nint Fence,
     ulong FenceValue
 );
+
+// The queue a pool orders its imports on, released with the pool.
+[SupportedOSPlatform("windows10.0.10240")]
+internal sealed class D3D12OrderingQueue(nint device) : IDisposable
+{
+    public nint Queue { get; } = D3D12.CreateOrderingQueue(device);
+
+    public void Dispose() => D3D12.Release(Queue);
+}
