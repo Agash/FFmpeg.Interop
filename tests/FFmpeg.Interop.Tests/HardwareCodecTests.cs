@@ -904,6 +904,8 @@ public sealed class HardwareCodecTests
         pool.WrapIOSurface(surface, wrapped);
         Assert.IsTrue(wrapped.TryGetCVPixelBuffer(out nint shared));
         Assert.AreEqual(surface, CVPixelBufferGetIOSurface(shared));
+        Assert.IsTrue(wrapped.TryGetIOSurface(out nint wrappedSurface));
+        Assert.AreEqual(surface, wrappedSurface);
         using Frame downloaded = new();
         wrapped.TransferTo(downloaded);
         byte[] back = new byte[downloaded.GetImageSize()];

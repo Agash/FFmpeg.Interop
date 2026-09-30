@@ -105,5 +105,19 @@ public static unsafe class VideoToolboxExtensions
                     : 0;
             return pixelBuffer != 0;
         }
+
+        /// <summary>
+        /// The <c>IOSurfaceRef</c> behind a <see cref="PixelFormat.VideoToolbox"/> frame, which Metal,
+        /// Core Video and Syphon share without a copy. A VideoToolbox decoder's frames have one.
+        /// </summary>
+        /// <param name="surface">The surface; not retained, valid while the frame holds its pixel buffer.</param>
+        /// <returns>Whether the frame is a VideoToolbox frame backed by an IOSurface.</returns>
+        public bool TryGetIOSurface(out nint surface)
+        {
+            surface = frame.TryGetCVPixelBuffer(out nint pixelBuffer)
+                ? CoreVideo.SurfaceOf(pixelBuffer)
+                : 0;
+            return surface != 0;
+        }
     }
 }

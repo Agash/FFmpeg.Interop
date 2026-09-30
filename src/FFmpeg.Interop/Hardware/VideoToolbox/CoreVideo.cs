@@ -64,6 +64,12 @@ internal static partial class CoreVideo
         out nint pixelBuffer
     );
 
+    // The IOSurface behind a pixel buffer, or 0 when it has none; not retained.
+    public static nint SurfaceOf(nint pixelBuffer) => CVPixelBufferGetIOSurface(pixelBuffer);
+
+    [LibraryImport(CoreVideoLibrary)]
+    private static partial nint CVPixelBufferGetIOSurface(nint pixelBuffer);
+
     [LibraryImport(IOSurfaceLibrary)]
     private static partial nuint IOSurfaceGetWidth(nint surface);
 
