@@ -118,12 +118,10 @@ public sealed unsafe class Encoder : CodecContext
     public long BitRate => NativePointer->bit_rate;
 
     /// <summary>
-    /// Whether <see cref="SetRateControl"/> takes effect on this encoder. FFmpeg 9 applies rate control
-    /// changes between frames only in NVENC (<c>*_nvenc</c>) and libx264; the others read these settings
-    /// once, when opened, so a new rate there means a new encoder, opened at a key frame.
+    /// Whether <see cref="SetRateControl"/> takes effect on this encoder; see
+    /// <see cref="Codec.SupportsRateControlChanges"/>.
     /// </summary>
-    public bool SupportsRateControlChanges =>
-        Codec.Name.EndsWith("_nvenc", StringComparison.Ordinal) || Codec.Name == "libx264";
+    public bool SupportsRateControlChanges => Codec.SupportsRateControlChanges;
 
     /// <summary>
     /// Changes the rate control for the frames sent from now on, as congestion control needs: FFmpeg's

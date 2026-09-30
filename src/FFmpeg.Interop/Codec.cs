@@ -58,6 +58,15 @@ public readonly unsafe struct Codec : IEquatable<Codec>
     public ReadOnlySpan<Rational> FrameRates =>
         SupportedConfig<Rational>(AVCodecConfig.AV_CODEC_CONFIG_FRAME_RATE);
 
+    /// <summary>
+    /// Whether the encoder applies a rate control change while running
+    /// (<see cref="Encoder.SetRateControl"/>). FFmpeg 9 does so between frames only in NVENC
+    /// (<c>*_nvenc</c>) and libx264; the others read their rate control once, when opened, so a new
+    /// rate there means a new encoder, opened at a key frame.
+    /// </summary>
+    public bool SupportsRateControlChanges =>
+        IsEncoder && (Name.EndsWith("_nvenc", StringComparison.Ordinal) || Name == "libx264");
+
     /// <summary>The ways the codec can use hardware acceleration.</summary>
     public ImmutableArray<HardwareConfig> HardwareConfigs
     {
