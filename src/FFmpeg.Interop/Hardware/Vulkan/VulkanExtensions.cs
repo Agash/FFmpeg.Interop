@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Immutable;
 using FFmpeg.Interop.Native;
 
 namespace FFmpeg.Interop;
@@ -26,6 +27,55 @@ public static unsafe class VulkanExtensions
             handles = new((nint)context->inst, (nint)context->phys_dev, (nint)context->act_dev);
             return true;
         }
+
+        /// <summary>
+        /// The device extensions FFmpeg enabled on a <see cref="HardwareDeviceType.Vulkan"/> device: every
+        /// extension it wanted that the driver offers, so a missing one means the GPU or driver lacks it.
+        /// Empty for other device types.
+        /// </summary>
+        public ImmutableArray<string> VulkanDeviceExtensions
+        {
+            get
+            {
+                if (device.Type != HardwareDeviceType.Vulkan)
+                {
+                    return [];
+                }
+
+                AVVulkanDeviceContext* context = (AVVulkanDeviceContext*)device.Context->hwctx;
+                ImmutableArray<string>.Builder names = ImmutableArray.CreateBuilder<string>(
+                    context->nb_enabled_dev_extensions
+                );
+                for (int i = 0; i < context->nb_enabled_dev_extensions; i++)
+                {
+                    names.Add(
+                        NativeString.Read(context->enabled_dev_extensions[i]) ?? string.Empty
+                    );
+                }
+
+                return names.MoveToImmutable();
+            }
+        }
+
+        /// <summary>
+        /// Whether a <see cref="HardwareDeviceType.Vulkan"/> device can decode a codec with Vulkan Video,
+        /// from the codec's <c>VK_KHR_video_decode_*</c> extension.
+        /// </summary>
+        /// <param name="codec">The codec.</param>
+        /// <returns>Whether the device decodes it.</returns>
+        public bool CanVulkanDecode(CodecId codec) =>
+            VideoExtension(codec, "decode") is { } name
+            && device.VulkanDeviceExtensions.Contains(name);
+
+        /// <summary>
+        /// Whether a <see cref="HardwareDeviceType.Vulkan"/> device can encode a codec with Vulkan Video,
+        /// from the codec's <c>VK_KHR_video_encode_*</c> extension.
+        /// </summary>
+        /// <param name="codec">The codec.</param>
+        /// <returns>Whether the device encodes it.</returns>
+        public bool CanVulkanEncode(CodecId codec) =>
+            VideoExtension(codec, "encode") is { } name
+            && device.VulkanDeviceExtensions.Contains(name);
 
         // The locally unique identifier of the GPU behind a Vulkan device, which DXGI reports for the
         // same GPU.
@@ -66,6 +116,12 @@ public static unsafe class VulkanExtensions
             return true;
         }
     }
+
+    private static string? VideoExtension(CodecId codec, string direction) =>
+        codec == CodecId.H264 ? $"VK_KHR_video_{direction}_h264"
+        : codec == CodecId.Hevc ? $"VK_KHR_video_{direction}_h265"
+        : codec == CodecId.Av1 ? $"VK_KHR_video_{direction}_av1"
+        : null;
 
     extension(Frame frame)
     {
