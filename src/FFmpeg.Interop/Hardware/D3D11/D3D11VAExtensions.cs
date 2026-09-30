@@ -105,7 +105,7 @@ public static unsafe class D3D11VAExtensions
             if (pool.Format != PixelFormat.D3D11)
             {
                 throw new InvalidOperationException(
-                    $"The pool holds {pool.Format} surfaces, not D3D11 textures."
+                    $"The pool holds {pool.Format} surfaces; a D3D11 texture needs a D3D11 pool."
                 );
             }
 

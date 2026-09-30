@@ -85,7 +85,7 @@ public sealed record GpuAdapter
     /// <summary>Dedicated video memory in bytes, when known; 0 for integrated GPUs.</summary>
     public long DedicatedVideoMemory { get; init; }
 
-    /// <summary>Whether the adapter is a software rasterizer rather than hardware.</summary>
+    /// <summary>Whether the adapter is a software rasterizer.</summary>
     public bool IsSoftware { get; init; }
 
     /// <summary>The GPUs in this machine, hardware adapters first in the platform's order.</summary>

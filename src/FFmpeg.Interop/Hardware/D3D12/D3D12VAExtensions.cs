@@ -190,7 +190,7 @@ public static unsafe class D3D12VAExtensions
             if (pool.Format != PixelFormat.D3D12)
             {
                 throw new InvalidOperationException(
-                    $"The pool holds {pool.Format} surfaces, not D3D12 resources."
+                    $"The pool holds {pool.Format} surfaces; a D3D12 texture needs a D3D12 pool."
                 );
             }
 
@@ -267,7 +267,7 @@ public static unsafe class D3D12VAExtensions
         if (pool.Format != PixelFormat.D3D12)
         {
             throw new InvalidOperationException(
-                $"The pool holds {pool.Format} surfaces, not D3D12 resources."
+                $"The pool holds {pool.Format} surfaces; a D3D12 texture needs a D3D12 pool."
             );
         }
 
