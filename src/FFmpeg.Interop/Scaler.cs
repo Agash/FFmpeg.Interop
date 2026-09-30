@@ -95,10 +95,11 @@ public sealed unsafe class Scaler : IDisposable
     public static bool IsSupportedOutput(PixelFormat format) => sws_test_format(format, 1) != 0;
 
     /// <summary>
-    /// Converts <paramref name="source"/> into <paramref name="destination"/>, whose width, height and
-    /// pixel format say what to produce. The destination's previous data is released and replaced with a
-    /// buffer from the scaler's pool, so a loop that reuses one destination frame allocates nothing once
-    /// the pool is warm. Timestamps and other properties are copied from the source.
+    /// Converts <paramref name="source"/> into <paramref name="destination"/>, whose width, height,
+    /// pixel format and colour (range, matrix, primaries, transfer, chroma siting) say what to produce;
+    /// colour fields left unspecified take the source's. The destination's previous data is released and
+    /// replaced with a buffer from the scaler's pool, so a loop that reuses one destination frame allocates
+    /// nothing once the pool is warm. Timestamps and other properties are copied from the source.
     /// </summary>
     /// <param name="source">The picture to convert.</param>
     /// <param name="destination">The frame to write, with its size and format set.</param>
@@ -120,10 +121,29 @@ public sealed unsafe class Scaler : IDisposable
         // Existing buffers are never reused in place: their strides were computed for whatever geometry
         // they were allocated with, and writing a larger picture through them would overrun them.
         AVFrame* frame = destination.NativePointer;
+        AVFrame* input = source.NativePointer;
+        TargetColor color = new(
+            frame->color_range == AVColorRange.AVCOL_RANGE_UNSPECIFIED
+                ? input->color_range
+                : frame->color_range,
+            frame->colorspace == AVColorSpace.AVCOL_SPC_UNSPECIFIED
+                ? input->colorspace
+                : frame->colorspace,
+            frame->color_primaries == AVColorPrimaries.AVCOL_PRI_UNSPECIFIED
+                ? input->color_primaries
+                : frame->color_primaries,
+            frame->color_trc == AVColorTransferCharacteristic.AVCOL_TRC_UNSPECIFIED
+                ? input->color_trc
+                : frame->color_trc,
+            frame->chroma_location == AVChromaLocation.AVCHROMA_LOC_UNSPECIFIED
+                ? input->chroma_location
+                : frame->chroma_location
+        );
         LibAVUtil.av_frame_unref(frame);
         frame->width = width;
         frame->height = height;
         frame->format = (int)format.Value;
+        color.ApplyTo(frame);
 
         int size = FFmpegError.ThrowIfError(
             LibAVUtil.av_image_get_buffer_size(format, width, height, BufferAlignment)
@@ -145,8 +165,28 @@ public sealed unsafe class Scaler : IDisposable
                 BufferAlignment
             )
         );
-        FFmpegError.ThrowIfError(sws_scale_frame(NativePointer, frame, source.NativePointer));
+        FFmpegError.ThrowIfError(sws_scale_frame(NativePointer, frame, input));
         destination.CopyPropertiesFrom(source);
+        color.ApplyTo(frame);
+    }
+
+    // The colour a conversion produces, which copying the source's properties would otherwise overwrite.
+    private readonly record struct TargetColor(
+        AVColorRange Range,
+        AVColorSpace Space,
+        AVColorPrimaries Primaries,
+        AVColorTransferCharacteristic Transfer,
+        AVChromaLocation ChromaLocation
+    )
+    {
+        public void ApplyTo(AVFrame* frame)
+        {
+            frame->color_range = Range;
+            frame->colorspace = Space;
+            frame->color_primaries = Primaries;
+            frame->color_trc = Transfer;
+            frame->chroma_location = ChromaLocation;
+        }
     }
 
     /// <inheritdoc/>

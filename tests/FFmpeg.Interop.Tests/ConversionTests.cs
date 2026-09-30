@@ -108,6 +108,36 @@ public sealed class ConversionTests
     }
 
     [TestMethod]
+    public void Scale_DestinationColour_IsProducedAndUnsetFieldsFollowTheSource()
+    {
+        TestNatives.Require();
+        using Scaler scaler = new();
+        using Frame source = new();
+        source.AllocateVideo(64, 64, PixelFormat.Yuv420P);
+        source.GetWritablePlane(0).GetRow(0).Fill(16);
+        source.ColorRange = ColorRange.Limited;
+        source.ColorSpace = ColorSpace.Bt709;
+        source.ColorPrimaries = ColorPrimaries.Bt709;
+        using Frame destination = new();
+        destination.Width = 64;
+        destination.Height = 64;
+        destination.PixelFormat = PixelFormat.Yuv420P;
+        destination.ColorRange = ColorRange.Full;
+
+        scaler.Scale(source, destination);
+
+        Assert.AreEqual(
+            0,
+            destination.GetPlane(0).GetRow(0)[0],
+            1,
+            "video-range black is full-range 0"
+        );
+        Assert.AreEqual(ColorRange.Full, destination.ColorRange);
+        Assert.AreEqual(ColorSpace.Bt709, destination.ColorSpace, "unset fields follow the source");
+        Assert.AreEqual(ColorPrimaries.Bt709, destination.ColorPrimaries);
+    }
+
+    [TestMethod]
     public void Scaler_ReportsSupportedFormats()
     {
         TestNatives.Require();
