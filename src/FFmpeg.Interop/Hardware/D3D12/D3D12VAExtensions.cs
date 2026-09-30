@@ -49,6 +49,17 @@ public static unsafe class D3D12VAExtensions
                 throw;
             }
         }
+
+        /// <summary>
+        /// Wraps the Direct3D 12 device a resource belongs to, for a caller that holds resources but not
+        /// their device: a frame from a capture API or a shared-texture protocol.
+        /// </summary>
+        /// <param name="resource">The <c>ID3D12Resource*</c> or any other <c>ID3D12DeviceChild*</c>.</param>
+        /// <returns>The device.</returns>
+        public static HardwareDevice FromD3D12Resource(nint resource) =>
+            resource == 0
+                ? throw new ArgumentNullException(nameof(resource))
+                : HardwareDevice.FromD3D12Device(D3D12.GetDevice(resource));
     }
 
     extension(HardwareDevice device)

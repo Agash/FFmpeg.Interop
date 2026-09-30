@@ -42,6 +42,17 @@ public static unsafe class D3D11VAExtensions
                 throw;
             }
         }
+
+        /// <summary>
+        /// Wraps the Direct3D 11 device a texture belongs to, for a caller that holds textures but not
+        /// their device: a frame from a capture API or a shared-texture protocol.
+        /// </summary>
+        /// <param name="texture">The <c>ID3D11Texture2D*</c> or any other <c>ID3D11DeviceChild*</c>.</param>
+        /// <returns>The device.</returns>
+        public static HardwareDevice FromD3D11Texture(nint texture) =>
+            texture == 0
+                ? throw new ArgumentNullException(nameof(texture))
+                : HardwareDevice.FromD3D11Device(D3D11.GetDevice(texture));
     }
 
     extension(HardwareDevice device)
