@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Windows.Win32.Graphics.Direct3D12;
@@ -88,18 +89,30 @@ public sealed class HardwareCodecTests
     [TestMethod]
     [TestCategory("RequiresHardwareDecoder")]
     [TestCategory("RequiresVaapi")]
-    [DataRow("h264", "vaapi")]
-    [DataRow("hevc", "vaapi")]
-    [DataRow("av1", "vaapi")]
-    [DataRow("h264", "vulkan")]
-    [DataRow("hevc", "vulkan")]
-    [DataRow("av1", "vulkan")]
-    public Task VaapiDecode_IsBitExactWithSoftwareDecode(string clip, string deviceType) =>
-        AssertDecodeMatchesSoftwareAsync(clip, GpuVendor.Amd, deviceType, decoder: null);
+    [OSCondition(OperatingSystems.Linux)]
+    [DataRow("h264")]
+    [DataRow("hevc")]
+    [DataRow("av1")]
+    public Task VaapiDecode_IsBitExactWithSoftwareDecode(string clip) =>
+        AssertDecodeMatchesSoftwareAsync(clip, GpuVendor.Amd, "vaapi", decoder: null);
+
+    // A GPU whose driver lacks Vulkan Video for the codec is skipped; one that has it must decode.
+    [TestMethod]
+    [TestCategory("RequiresHardwareDecoder")]
+    [TestCategory("RequiresVulkan")]
+    [DataRow("h264", GpuVendor.Nvidia)]
+    [DataRow("hevc", GpuVendor.Nvidia)]
+    [DataRow("av1", GpuVendor.Nvidia)]
+    [DataRow("h264", GpuVendor.Amd)]
+    [DataRow("hevc", GpuVendor.Amd)]
+    [DataRow("av1", GpuVendor.Amd)]
+    public Task VulkanDecode_IsBitExactWithSoftwareDecode(string clip, GpuVendor vendor) =>
+        AssertDecodeMatchesSoftwareAsync(clip, vendor, "vulkan", decoder: null);
 
     [TestMethod]
     [TestCategory("RequiresHardwareDecoder")]
     [TestCategory("RequiresVideoToolbox")]
+    [OSCondition(OperatingSystems.OSX)]
     [DataRow("h264")]
     [DataRow("hevc")]
     public Task VideoToolboxDecode_IsBitExactWithSoftwareDecode(string clip) =>
@@ -137,6 +150,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresVaapi")]
+    [OSCondition(OperatingSystems.Linux)]
     [DataRow("h264_vaapi", "vaapi", EncoderInput.Surfaces)]
     [DataRow("hevc_vaapi", "vaapi", EncoderInput.Surfaces)]
     public Task VaapiEncode_ProducesAStreamFFmpegReadsBack(
@@ -147,6 +161,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresVideoToolbox")]
+    [OSCondition(OperatingSystems.OSX)]
     [DataRow("h264_videotoolbox", EncoderInput.SystemMemory)]
     [DataRow("hevc_videotoolbox", EncoderInput.SystemMemory)]
     [DataRow("h264_videotoolbox", EncoderInput.Surfaces)]
@@ -175,6 +190,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresVaapi")]
+    [OSCondition(OperatingSystems.Linux)]
     [DataRow("h264", "vaapi", "hevc_vaapi")]
     public Task VaapiTranscode_StaysOnTheGpu(string clip, string deviceType, string encoder) =>
         AssertGpuTranscodeAsync(clip, GpuVendor.Amd, deviceType, encoder);
@@ -488,6 +504,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresVaapi")]
+    [OSCondition(OperatingSystems.Linux)]
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]
     // FFmpeg derives VA-API and Vulkan from a DRM device, not the reverse: the DRM render node is the
     // Linux identity of a GPU, and everything else is opened from it.
@@ -667,6 +684,7 @@ public sealed class HardwareCodecTests
     // surface, which gives descriptors exactly as a producer's would be.
     [TestMethod]
     [TestCategory("RequiresVaapi")]
+    [OSCondition(OperatingSystems.Linux)]
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]
     public void DrmPrimeImport_MapsDmaBufsIntoVaapiSurfaces()
     {
@@ -712,7 +730,11 @@ public sealed class HardwareCodecTests
             layers.Add(new(descriptor.GetLayerFormat(l), [.. planes]));
         }
 
-        using Frame imported = Frame.FromDrmPrime(new DrmPrimeImage([.. objects], [.. layers]), 64, 48);
+        using Frame imported = Frame.FromDrmPrime(
+            new DrmPrimeImage([.. objects], [.. layers]),
+            64,
+            48
+        );
         using Frame surface = new();
         imported.MapTo(pool, surface, HardwareMapAccess.Read);
         Assert.IsTrue(surface.TryGetVaapiSurface(out _));
@@ -726,6 +748,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresVideoToolbox")]
+    [OSCondition(OperatingSystems.OSX)]
     [System.Runtime.Versioning.SupportedOSPlatform("macos")]
     public void WrapCVPixelBuffer_SharesThePixelBufferWithoutACopy()
     {
@@ -768,6 +791,7 @@ public sealed class HardwareCodecTests
 
     [TestMethod]
     [TestCategory("RequiresVideoToolbox")]
+    [OSCondition(OperatingSystems.OSX)]
     [System.Runtime.Versioning.SupportedOSPlatform("macos")]
     public void WrapIOSurface_SharesTheSurfaceWithoutACopy()
     {
@@ -825,7 +849,7 @@ public sealed class HardwareCodecTests
 
     internal static GpuAdapter Adapter(GpuVendor vendor)
     {
-        IReadOnlyList<GpuAdapter> adapters = GpuAdapter.Enumerate();
+        ImmutableArray<GpuAdapter> adapters = GpuAdapter.Enumerate();
         GpuAdapter? adapter = adapters.FirstOrDefault(a => a.Vendor == vendor && !a.IsSoftware);
         Assert.IsNotNull(adapter, $"No {vendor} GPU among: {string.Join(", ", adapters)}.");
         return adapter;
@@ -855,6 +879,13 @@ public sealed class HardwareCodecTests
             DeviceType(deviceType),
             Adapter(vendor)
         );
+        if (device.Type == HardwareDeviceType.Vulkan && !device.CanVulkanDecode(ClipCodec(clip)))
+        {
+            Assert.Inconclusive(
+                $"The {vendor} GPU's driver has no Vulkan Video decode for {clip}."
+            );
+        }
+
         List<string> hardware = [];
         using (MediaReader reader = MediaReader.Open(path))
         using (

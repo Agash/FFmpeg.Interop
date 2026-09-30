@@ -186,6 +186,7 @@ public sealed class HardwareTests
     [TestMethod]
     [TestCategory("RequiresGpu")]
     [TestCategory("RequiresVaapi")]
+    [OSCondition(OperatingSystems.Linux)]
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]
     public void Vaapi_MapToDrmPrime_ExposesDmaBufDescriptors()
     {
