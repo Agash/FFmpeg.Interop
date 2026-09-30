@@ -67,6 +67,21 @@ public sealed record VideoEncoderOptions : EncoderOptions
     /// <summary>The pool the input surfaces come from, for encoders that take hardware frames.</summary>
     public HardwareFramePool? HardwareFrames { get; init; }
 
+    /// <summary>
+    /// The range the encoded stream signals, and that frames in a YUV format must already be in; for
+    /// RGB input to a hardware encoder that converts, the range it converts to.
+    /// </summary>
+    public ColorRange? ColorRange { get; init; }
+
+    /// <summary>The colour primaries the encoded stream signals.</summary>
+    public ColorPrimaries? ColorPrimaries { get; init; }
+
+    /// <summary>The transfer characteristics the encoded stream signals.</summary>
+    public ColorTransfer? ColorTransfer { get; init; }
+
+    /// <summary>The matrix the encoded stream signals, and that an RGB-converting encoder applies.</summary>
+    public ColorSpace? ColorSpace { get; init; }
+
     /// <summary>The device, for hardware encoders that take a device rather than frames.</summary>
     public HardwareDevice? HardwareDevice { get; init; }
 }
@@ -176,6 +191,26 @@ public sealed unsafe class Encoder : CodecContext
                 if (options.MaxBFrames is { } bFrames)
                 {
                     context->max_b_frames = bFrames;
+                }
+
+                if (options.ColorRange is { } range)
+                {
+                    context->color_range = (AVColorRange)range;
+                }
+
+                if (options.ColorPrimaries is { } primaries)
+                {
+                    context->color_primaries = (AVColorPrimaries)primaries;
+                }
+
+                if (options.ColorTransfer is { } transfer)
+                {
+                    context->color_trc = (AVColorTransferCharacteristic)transfer;
+                }
+
+                if (options.ColorSpace is { } space)
+                {
+                    context->colorspace = (AVColorSpace)space;
                 }
 
                 if (options.HardwareFrames is { } pool)

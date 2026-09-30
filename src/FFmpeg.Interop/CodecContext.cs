@@ -40,6 +40,18 @@ public abstract unsafe class CodecContext : IDisposable
     /// <summary>The pixel format of the pictures (a hardware format when hardware accelerated).</summary>
     public PixelFormat PixelFormat => NativePointer->pix_fmt;
 
+    /// <summary>The range of sample values the stream signals.</summary>
+    public ColorRange ColorRange => (ColorRange)NativePointer->color_range;
+
+    /// <summary>The colour primaries the stream signals.</summary>
+    public ColorPrimaries ColorPrimaries => (ColorPrimaries)NativePointer->color_primaries;
+
+    /// <summary>The transfer characteristics the stream signals.</summary>
+    public ColorTransfer ColorTransfer => (ColorTransfer)NativePointer->color_trc;
+
+    /// <summary>The matrix from RGB to luma and chroma the stream signals.</summary>
+    public ColorSpace ColorSpace => (ColorSpace)NativePointer->colorspace;
+
     /// <summary>The audio sample rate.</summary>
     public int SampleRate => NativePointer->sample_rate;
 

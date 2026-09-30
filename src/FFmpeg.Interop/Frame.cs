@@ -136,6 +136,34 @@ public sealed unsafe class Frame : IDisposable
         set => NativePointer->pict_type = (AVPictureType)value;
     }
 
+    /// <summary>The range of the frame's sample values.</summary>
+    public ColorRange ColorRange
+    {
+        get => (ColorRange)NativePointer->color_range;
+        set => NativePointer->color_range = (AVColorRange)value;
+    }
+
+    /// <summary>The frame's colour primaries.</summary>
+    public ColorPrimaries ColorPrimaries
+    {
+        get => (ColorPrimaries)NativePointer->color_primaries;
+        set => NativePointer->color_primaries = (AVColorPrimaries)value;
+    }
+
+    /// <summary>The frame's transfer characteristics.</summary>
+    public ColorTransfer ColorTransfer
+    {
+        get => (ColorTransfer)NativePointer->color_trc;
+        set => NativePointer->color_trc = (AVColorTransferCharacteristic)value;
+    }
+
+    /// <summary>The matrix from RGB to the frame's luma and chroma.</summary>
+    public ColorSpace ColorSpace
+    {
+        get => (ColorSpace)NativePointer->colorspace;
+        set => NativePointer->colorspace = (AVColorSpace)value;
+    }
+
     /// <summary>Whether the frame holds picture or sample data.</summary>
     public bool HasData => NativePointer->buf.e0 is not null;
 
