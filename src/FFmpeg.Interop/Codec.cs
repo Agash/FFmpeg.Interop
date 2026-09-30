@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using FFmpeg.Interop.Native;
 using static FFmpeg.Interop.Native.LibAVCodec;
 
@@ -58,11 +59,12 @@ public readonly unsafe struct Codec : IEquatable<Codec>
         SupportedConfig<Rational>(AVCodecConfig.AV_CODEC_CONFIG_FRAME_RATE);
 
     /// <summary>The ways the codec can use hardware acceleration.</summary>
-    public IReadOnlyList<HardwareConfig> HardwareConfigs
+    public ImmutableArray<HardwareConfig> HardwareConfigs
     {
         get
         {
-            List<HardwareConfig> configs = [];
+            ImmutableArray<HardwareConfig>.Builder configs =
+                ImmutableArray.CreateBuilder<HardwareConfig>();
             AVCodecHWConfig* config;
             for (int i = 0; (config = avcodec_get_hw_config(NativePointer, i)) is not null; i++)
             {
@@ -75,7 +77,7 @@ public readonly unsafe struct Codec : IEquatable<Codec>
                 );
             }
 
-            return configs;
+            return configs.DrainToImmutable();
         }
     }
 

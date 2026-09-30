@@ -709,10 +709,10 @@ public sealed class HardwareCodecTests
                 planes.Add(descriptor.GetPlane(l, p));
             }
 
-            layers.Add(new(descriptor.GetLayerFormat(l), planes));
+            layers.Add(new(descriptor.GetLayerFormat(l), [.. planes]));
         }
 
-        using Frame imported = Frame.FromDrmPrime(new DrmPrimeImage(objects, layers), 64, 48);
+        using Frame imported = Frame.FromDrmPrime(new DrmPrimeImage([.. objects], [.. layers]), 64, 48);
         using Frame surface = new();
         imported.MapTo(pool, surface, HardwareMapAccess.Read);
         Assert.IsTrue(surface.TryGetVaapiSurface(out _));

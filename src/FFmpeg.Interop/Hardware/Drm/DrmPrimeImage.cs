@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using FFmpeg.Interop.Native;
 
@@ -9,16 +10,22 @@ namespace FFmpeg.Interop;
 /// </summary>
 /// <param name="Objects">The DMA-BUF objects, at most four.</param>
 /// <param name="Layers">The layers, at most four, each with at most four planes.</param>
-public sealed record DrmPrimeImage(IReadOnlyList<DrmObject> Objects, IReadOnlyList<DrmLayer> Layers)
+public sealed record DrmPrimeImage(
+    ImmutableArray<DrmObject> Objects,
+    ImmutableArray<DrmLayer> Layers
+)
 {
     // AV_DRM_MAX_PLANES: the fixed array sizes in AVDRMFrameDescriptor and AVDRMLayerDescriptor.
     private const int MaxEntries = 4;
 
     internal AVDRMFrameDescriptor ToNative()
     {
-        ArgumentNullException.ThrowIfNull(Objects);
-        ArgumentNullException.ThrowIfNull(Layers);
-        if (Objects.Count is 0 or > MaxEntries || Layers.Count is 0 or > MaxEntries)
+        if (Objects.IsDefault || Layers.IsDefault)
+        {
+            throw new ArgumentException("A DRM PRIME image needs its objects and layers.");
+        }
+
+        if (Objects.Length is 0 or > MaxEntries || Layers.Length is 0 or > MaxEntries)
         {
             throw new ArgumentException(
                 $"A DRM PRIME image has 1 to {MaxEntries} objects and 1 to {MaxEntries} layers."
@@ -26,8 +33,8 @@ public sealed record DrmPrimeImage(IReadOnlyList<DrmObject> Objects, IReadOnlyLi
         }
 
         AVDRMFrameDescriptor native = default;
-        native.nb_objects = Objects.Count;
-        for (int i = 0; i < Objects.Count; i++)
+        native.nb_objects = Objects.Length;
+        for (int i = 0; i < Objects.Length; i++)
         {
             DrmObject dmaBuf = Objects[i];
             native.objects[i] = new AVDRMObjectDescriptor
@@ -38,23 +45,23 @@ public sealed record DrmPrimeImage(IReadOnlyList<DrmObject> Objects, IReadOnlyLi
             };
         }
 
-        native.nb_layers = Layers.Count;
-        for (int l = 0; l < Layers.Count; l++)
+        native.nb_layers = Layers.Length;
+        for (int l = 0; l < Layers.Length; l++)
         {
             DrmLayer layer = Layers[l];
-            if (layer.Planes.Count is 0 or > MaxEntries)
+            if (layer.Planes.IsDefaultOrEmpty || layer.Planes.Length > MaxEntries)
             {
                 throw new ArgumentException(
-                    $"Layer {l} has {layer.Planes.Count} planes; a layer has 1 to {MaxEntries}."
+                    $"Layer {l} has {layer.Planes.Length} planes; a layer has 1 to {MaxEntries}."
                 );
             }
 
             native.layers[l].format = layer.Format;
-            native.layers[l].nb_planes = layer.Planes.Count;
-            for (int p = 0; p < layer.Planes.Count; p++)
+            native.layers[l].nb_planes = layer.Planes.Length;
+            for (int p = 0; p < layer.Planes.Length; p++)
             {
                 DrmPlane plane = layer.Planes[p];
-                if ((uint)plane.ObjectIndex >= (uint)Objects.Count)
+                if ((uint)plane.ObjectIndex >= (uint)Objects.Length)
                 {
                     throw new ArgumentException(
                         $"Layer {l} plane {p} refers to object {plane.ObjectIndex}, which does not exist."
@@ -77,7 +84,7 @@ public sealed record DrmPrimeImage(IReadOnlyList<DrmObject> Objects, IReadOnlyLi
 /// <summary>One layer of a DRM PRIME image: a DRM format and the planes that make it up.</summary>
 /// <param name="Format">The <c>DRM_FORMAT_*</c> fourcc, for example NV12, or R8 and GR88 for NV12 split into two layers.</param>
 /// <param name="Planes">The planes, in the format's plane order.</param>
-public sealed record DrmLayer(uint Format, IReadOnlyList<DrmPlane> Planes);
+public sealed record DrmLayer(uint Format, ImmutableArray<DrmPlane> Planes);
 
 /// <summary>A DMA-BUF object: a file descriptor and its size and layout modifier.</summary>
 /// <param name="FileDescriptor">The DMA-BUF file descriptor, owned by the frame.</param>

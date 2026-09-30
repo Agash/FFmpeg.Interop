@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using FFmpeg.Interop.Native;
 using static FFmpeg.Interop.Native.LibAVFormat;
 
@@ -18,7 +20,7 @@ public sealed unsafe class MediaReader : IDisposable
             streams[i] = new MediaStream(this, context->streams[i]);
         }
 
-        Streams = streams;
+        Streams = ImmutableCollectionsMarshal.AsImmutableArray(streams);
     }
 
     /// <summary>The native context, owned by this instance and invalid after <see cref="Dispose"/>.</summary>
@@ -32,7 +34,7 @@ public sealed unsafe class MediaReader : IDisposable
     }
 
     /// <summary>The streams in the input.</summary>
-    public IReadOnlyList<MediaStream> Streams { get; }
+    public ImmutableArray<MediaStream> Streams { get; }
 
     /// <summary>The duration of the input, when known.</summary>
     public TimeSpan? Duration =>

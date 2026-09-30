@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace FFmpeg.Interop.Tests;
 
 [TestClass]
@@ -55,7 +57,7 @@ public sealed class CodecTests
     [TestMethod]
     public void HardwareConfigs_ListTheDeviceTypesADecoderCanUse()
     {
-        IReadOnlyList<HardwareConfig> configs = Codec.FindDecoder(CodecId.H264).HardwareConfigs;
+        ImmutableArray<HardwareConfig> configs = Codec.FindDecoder(CodecId.H264).HardwareConfigs;
         HardwareDeviceType expected = TestNatives.PlatformVideoApi;
 
         HardwareConfig config = configs.Single(c => c.DeviceType == expected);

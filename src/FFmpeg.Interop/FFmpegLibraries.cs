@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using FFmpeg.Interop.Native;
@@ -30,7 +31,7 @@ public static class FFmpegLibraries
     private static bool s_resolverInstalled;
 
     /// <summary>The native libraries the bindings import, with the ABI major each was generated for.</summary>
-    public static IReadOnlyList<(string Name, int Major)> Libraries { get; } =
+    public static ImmutableArray<(string Name, int Major)> Libraries { get; } =
     [
         ("avutil", LibAVUtil.LIBAVUTIL_VERSION_MAJOR),
         ("avcodec", LibAVCodec.LIBAVCODEC_VERSION_MAJOR),
