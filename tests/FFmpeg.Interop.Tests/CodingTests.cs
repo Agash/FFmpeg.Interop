@@ -231,6 +231,27 @@ public sealed class CodingTests
     }
 
     [TestMethod]
+    public unsafe void Decoder_LowDelay_SetsTheLowDelayFlag()
+    {
+        TestNatives.Require();
+
+        using Decoder lowDelay = Decoder.Create(
+            Codec.FindDecoder(CodecId.H264),
+            new DecoderOptions { LowDelay = true }
+        );
+        using Decoder buffered = Decoder.Create(Codec.FindDecoder(CodecId.H264));
+
+        Assert.AreNotEqual(
+            0,
+            lowDelay.NativePointer->flags & Native.LibAVCodec.AV_CODEC_FLAG_LOW_DELAY
+        );
+        Assert.AreEqual(
+            0,
+            buffered.NativePointer->flags & Native.LibAVCodec.AV_CODEC_FLAG_LOW_DELAY
+        );
+    }
+
+    [TestMethod]
     public void Decoder_UnknownOption_Throws()
     {
         TestNatives.Require();

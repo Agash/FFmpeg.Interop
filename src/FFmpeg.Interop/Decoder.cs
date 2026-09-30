@@ -24,6 +24,12 @@ public sealed record DecoderOptions
     public int ThreadCount { get; init; }
 
     /// <summary>
+    /// Output each frame as soon as it is decoded, without waiting to reorder (<c>AV_CODEC_FLAG_LOW_DELAY</c>),
+    /// for real-time streams encoded without B-frames.
+    /// </summary>
+    public bool LowDelay { get; init; }
+
+    /// <summary>
     /// Codec setup data (<see cref="CodecContext.ExtraData"/>), for streams that carry it out of band,
     /// such as H.264 from an MP4 or Opus with a header.
     /// </summary>
@@ -91,6 +97,10 @@ public sealed unsafe class Decoder : CodecContext
 
             decoder.SetExtraData(options.ExtraData.Span);
             context->thread_count = options.ThreadCount;
+            if (options.LowDelay)
+            {
+                context->flags |= AV_CODEC_FLAG_LOW_DELAY;
+            }
             if (options.PacketTimeBase is { } timeBase)
             {
                 context->pkt_timebase = timeBase;
