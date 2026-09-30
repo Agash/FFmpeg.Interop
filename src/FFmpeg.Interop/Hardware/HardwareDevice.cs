@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -331,7 +332,7 @@ public sealed unsafe class HardwareDevice : IDisposable
     private static NotSupportedException NotOn(HardwareDeviceType type, GpuAdapter adapter) =>
         new($"A {type} device cannot be opened on {adapter} on this platform.");
 
-    private static PixelFormat[] Formats(AVPixelFormat* list)
+    private static ImmutableArray<PixelFormat> Formats(AVPixelFormat* list)
     {
         if (list is null)
         {
@@ -356,8 +357,8 @@ public sealed unsafe class HardwareDevice : IDisposable
 /// <param name="MaxWidth">The maximum width.</param>
 /// <param name="MaxHeight">The maximum height.</param>
 public sealed record HardwareFrameConstraints(
-    IReadOnlyList<PixelFormat> HardwareFormats,
-    IReadOnlyList<PixelFormat> SoftwareFormats,
+    ImmutableArray<PixelFormat> HardwareFormats,
+    ImmutableArray<PixelFormat> SoftwareFormats,
     int MinWidth,
     int MinHeight,
     int MaxWidth,
