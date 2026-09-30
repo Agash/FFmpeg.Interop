@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 
 namespace FFmpeg.Interop;
@@ -72,6 +73,12 @@ public sealed record GpuAdapter
     /// <summary>The DRM render node, for example <c>/dev/dri/renderD128</c> (Linux).</summary>
     public string? RenderNode { get; init; }
 
+    /// <summary>
+    /// The device numbers (<c>dev_t</c>) of the GPU's DRM nodes, render and primary (Linux). A DMA-BUF
+    /// producer names its GPU by one of them, as PipeWire's DMA-BUF device offer does.
+    /// </summary>
+    public ImmutableArray<ulong> DrmDeviceNumbers { get; init; } = [];
+
     /// <summary>The kernel driver, for example <c>amdgpu</c> (Linux).</summary>
     public string? Driver { get; init; }
 
@@ -83,11 +90,11 @@ public sealed record GpuAdapter
 
     /// <summary>The GPUs in this machine, hardware adapters first in the platform's order.</summary>
     /// <returns>The adapters.</returns>
-    public static IReadOnlyList<GpuAdapter> Enumerate()
+    public static ImmutableArray<GpuAdapter> Enumerate()
     {
         if (OperatingSystem.IsWindows())
         {
-            return Dxgi.EnumerateAdapters();
+            return [.. Dxgi.EnumerateAdapters()];
         }
 
         if (OperatingSystem.IsMacOS())
@@ -95,7 +102,39 @@ public sealed record GpuAdapter
             return [new GpuAdapter { Name = "Apple GPU", VendorId = 0x106B }];
         }
 
-        return EnumerateRenderNodes("/sys/class/drm");
+        return [.. EnumerateRenderNodes("/sys/class/drm")];
+    }
+
+    /// <summary>The adapter with a Windows LUID, as a D3D texture or DXGI output reports it.</summary>
+    /// <param name="luid">The LUID.</param>
+    /// <returns>The adapter, or null when no GPU has it.</returns>
+    public static GpuAdapter? FindByLuid(long luid)
+    {
+        foreach (GpuAdapter adapter in Enumerate())
+        {
+            if (adapter.Luid == luid)
+            {
+                return adapter;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The adapter with a DRM node of a device number (Linux), render or primary.</summary>
+    /// <param name="deviceNumber">The node's <c>dev_t</c>.</param>
+    /// <returns>The adapter, or null when no GPU has it.</returns>
+    public static GpuAdapter? FindByDrmDevice(ulong deviceNumber)
+    {
+        foreach (GpuAdapter adapter in Enumerate())
+        {
+            if (adapter.DrmDeviceNumbers.Contains(deviceNumber))
+            {
+                return adapter;
+            }
+        }
+
+        return null;
     }
 
     /// <inheritdoc/>
@@ -135,12 +174,55 @@ public sealed record GpuAdapter
                     DeviceId = id,
                     Driver = driver,
                     RenderNode = $"/dev/dri/{Path.GetFileName(node)}",
+                    DrmDeviceNumbers = DeviceNumbers(node, device),
                 }
             );
         }
 
         return adapters;
     }
+
+    // The render node's dev_t and those of its sibling nodes under the same device (the primary
+    // cardN node), from the "major:minor" each node's sysfs dev file holds.
+    private static ImmutableArray<ulong> DeviceNumbers(string node, string device)
+    {
+        ImmutableArray<ulong>.Builder numbers = ImmutableArray.CreateBuilder<ulong>();
+        AddDeviceNumber(numbers, Path.Combine(node, "dev"));
+        string siblings = Path.Combine(device, "drm");
+        if (Directory.Exists(siblings))
+        {
+            foreach (
+                string sibling in Directory
+                    .EnumerateDirectories(siblings, "card*")
+                    .Order(StringComparer.Ordinal)
+            )
+            {
+                AddDeviceNumber(numbers, Path.Combine(sibling, "dev"));
+            }
+        }
+
+        return numbers.DrainToImmutable();
+    }
+
+    private static void AddDeviceNumber(ImmutableArray<ulong>.Builder numbers, string devFile)
+    {
+        if (
+            File.Exists(devFile)
+            && File.ReadAllText(devFile).Trim().Split(':') is [string major, string minor]
+            && uint.TryParse(major, CultureInfo.InvariantCulture, out uint majorNumber)
+            && uint.TryParse(minor, CultureInfo.InvariantCulture, out uint minorNumber)
+        )
+        {
+            numbers.Add(MakeDeviceNumber(majorNumber, minorNumber));
+        }
+    }
+
+    // glibc's makedev: the Linux dev_t layout, 12-bit major and 20-bit minor split across 64 bits.
+    internal static ulong MakeDeviceNumber(uint major, uint minor) =>
+        (((ulong)major & 0xfffff000) << 32)
+        | (((ulong)major & 0x00000fff) << 8)
+        | (((ulong)minor & 0xffffff00) << 12)
+        | ((ulong)minor & 0x000000ff);
 
     private static int ReadHex(string path) =>
         File.Exists(path)

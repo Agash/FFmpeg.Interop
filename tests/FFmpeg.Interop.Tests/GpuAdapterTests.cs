@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace FFmpeg.Interop.Tests;
 
 [TestClass]
@@ -33,14 +35,14 @@ public sealed class GpuAdapterTests
     [TestMethod]
     public void Enumerate_ListsThisMachinesAdaptersWithTheirPlatformIdentity()
     {
-        IReadOnlyList<GpuAdapter> adapters = GpuAdapter.Enumerate();
+        ImmutableArray<GpuAdapter> adapters = GpuAdapter.Enumerate();
 
         if (OperatingSystem.IsWindows())
         {
             // Every Windows machine has at least the Basic Render Driver; DXGI numbers adapters 0..n.
-            Assert.IsGreaterThanOrEqualTo(1, adapters.Count);
+            Assert.IsGreaterThanOrEqualTo(1, adapters.Length);
             CollectionAssert.AreEqual(
-                Enumerable.Range(0, adapters.Count).ToList(),
+                Enumerable.Range(0, adapters.Length).ToList(),
                 adapters.Select(a => a.DxgiIndex!.Value).ToList()
             );
             Assert.IsTrue(adapters.All(a => a.Luid is not null && !string.IsNullOrEmpty(a.Name)));
@@ -81,6 +83,31 @@ public sealed class GpuAdapterTests
         Assert.AreEqual(0, adapters[2].VendorId, "A platform GPU has no PCI identity.");
         Assert.IsEmpty(GpuAdapter.EnumerateRenderNodes(scratch["missing"]));
     }
+
+    [TestMethod]
+    public void EnumerateRenderNodes_ReadsTheRenderAndPrimaryDeviceNumbers()
+    {
+        using Scratch scratch = new();
+        string drm = scratch["drm"];
+        MakeNode(drm, "renderD128", "0x1002\n", "0x1638\n");
+        File.WriteAllText(Path.Combine(drm, "renderD128", "dev"), "226:128\n");
+        string primary = Path.Combine(drm, "renderD128", "device", "drm", "card1");
+        _ = Directory.CreateDirectory(primary);
+        File.WriteAllText(Path.Combine(primary, "dev"), "226:1\n");
+
+        GpuAdapter adapter = GpuAdapter.EnumerateRenderNodes(drm).Single();
+
+        CollectionAssert.AreEqual(
+            new[] { (226UL << 8) | 128, (226UL << 8) | 1 },
+            adapter.DrmDeviceNumbers.ToArray()
+        );
+    }
+
+    [TestMethod]
+    [DataRow(226u, 128u, 0xE280UL)]
+    [DataRow(0x1234u, 0x56789u, 0x1000_5672_3489UL)]
+    public void MakeDeviceNumber_FollowsTheLinuxLayout(uint major, uint minor, ulong expected) =>
+        Assert.AreEqual(expected, GpuAdapter.MakeDeviceNumber(major, minor));
 
     [TestMethod]
     public void CreateOnAdapter_WithoutTheIdentityTheTypeNeeds_IsNotSupported()
