@@ -12,3 +12,10 @@ CreateEvent
 CloseHandle
 DXGI_ERROR_NOT_FOUND
 ID3D12DeviceChild
+ID3D12CommandAllocator
+ID3D12GraphicsCommandList
+ID3D12CommandList
+D3D12_TEXTURE_COPY_LOCATION
+D3D12_BOX
+WaitForSingleObject
+INFINITE

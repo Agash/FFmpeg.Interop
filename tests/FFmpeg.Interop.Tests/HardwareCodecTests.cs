@@ -521,6 +521,71 @@ public sealed class HardwareCodecTests
         }
     }
 
+    // A decoder pads its surfaces past the picture; the copy takes the picture's region into a surface
+    // of the pool's size, after the source's fence, on the GPU.
+    [TestMethod]
+    [TestCategory("RequiresNvidia")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    public unsafe void CopyFromD3D12Texture_TakesTheTopLeftOfALargerTexture()
+    {
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.D3D12VA,
+            Adapter(GpuVendor.Nvidia)
+        );
+        using HardwareFramePool padded = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D12,
+            PixelFormat.Nv12,
+            96,
+            64
+        );
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D12,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using Frame source = new();
+        source.AllocateVideo(96, 64, PixelFormat.Nv12);
+        byte[] pixels = new byte[source.GetImageSize()];
+        new Random(19).NextBytes(pixels);
+        source.CopyImageFrom(pixels);
+        using Frame rendered = new();
+        padded.Upload(source, rendered);
+        Assert.IsTrue(rendered.TryGetD3D12Texture(out D3D12Texture texture));
+
+        using Frame copy = new();
+        pool.CopyFromD3D12Texture(
+            texture.Resource,
+            texture.Subresource,
+            texture.Fence,
+            texture.FenceValue,
+            copy
+        );
+        using Frame back = new();
+        copy.TransferTo(back);
+
+        // NV12 at 96x64: luma rows of 96, then interleaved chroma rows of 96.
+        for (int y = 0; y < 48; y++)
+        {
+            CollectionAssert.AreEqual(
+                pixels.AsSpan(y * 96, 64).ToArray(),
+                back.GetPlane(0).GetRow(y)[..64].ToArray(),
+                $"Luma row {y}."
+            );
+        }
+
+        for (int y = 0; y < 24; y++)
+        {
+            CollectionAssert.AreEqual(
+                pixels.AsSpan((96 * 64) + (y * 96), 64).ToArray(),
+                back.GetPlane(1).GetRow(y)[..64].ToArray(),
+                $"Chroma row {y}."
+            );
+        }
+    }
+
     [TestMethod]
     [TestCategory("RequiresNvidia")]
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]

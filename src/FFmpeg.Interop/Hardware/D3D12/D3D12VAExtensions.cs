@@ -148,19 +148,109 @@ public static unsafe class D3D12VAExtensions
                 );
             }
 
-            D3D12OrderingQueue ordering = pool.Attachment(static p => new D3D12OrderingQueue(
-                DeviceOf(p)
-            ));
+            D3D12PoolWork work = pool.Attachment(static p => new D3D12PoolWork(DeviceOf(p)));
             AVBufferRef* buffer = D3D12.WrapResource(
                 device,
                 resource,
-                ordering.Queue,
+                work.OrderingQueue,
                 readyFence,
                 readyValue
             );
             pool.Adopt(destination, buffer, 0, buffer->data);
         }
+
+        /// <summary>
+        /// Copies a Direct3D 12 texture into a surface from this pool on the GPU, for a texture the pool
+        /// cannot wrap as it is: larger than the pool (a decoder pads its surfaces), a slice of a texture
+        /// array, or one the producer reuses. The copy waits on the GPU for the texture to be ready.
+        /// </summary>
+        /// <param name="resource">
+        /// The <c>ID3D12Resource*</c> on this pool's device, in the pool's DXGI format and at least the
+        /// pool's size, in <c>D3D12_RESOURCE_STATE_COMMON</c>; the top-left pool-sized region is copied.
+        /// </param>
+        /// <param name="subresource">The array slice to copy.</param>
+        /// <param name="readyFence">An <c>ID3D12Fence*</c> that marks the texture ready, or zero when it is.</param>
+        /// <param name="readyValue">The value <paramref name="readyFence"/> reaches when it is.</param>
+        /// <param name="destination">The frame to receive the surface; its previous content is released.</param>
+        public void CopyFromD3D12Texture(
+            nint resource,
+            int subresource,
+            nint readyFence,
+            ulong readyValue,
+            Frame destination
+        )
+        {
+            if (resource == 0)
+            {
+                throw new ArgumentNullException(nameof(resource));
+            }
+
+            ArgumentOutOfRangeException.ThrowIfNegative(subresource);
+            ArgumentNullException.ThrowIfNull(destination);
+            if (pool.Format != PixelFormat.D3D12)
+            {
+                throw new InvalidOperationException(
+                    $"The pool holds {pool.Format} surfaces, not D3D12 resources."
+                );
+            }
+
+            nint device = DeviceOf(pool);
+            if (D3D12.GetDevice(resource) != device)
+            {
+                throw new ArgumentException(
+                    "The resource belongs to another D3D12 device; open the pool's device from the application's device.",
+                    nameof(resource)
+                );
+            }
+
+            if (readyFence != 0 && D3D12.GetDevice(readyFence) != device)
+            {
+                throw new ArgumentException(
+                    "The fence belongs to another D3D12 device than the pool's.",
+                    nameof(readyFence)
+                );
+            }
+
+            D3D12_RESOURCE_DESC source = D3D12.GetDescription(resource);
+            int format = ((AVD3D12VAFramesContext*)pool.Context->hwctx)->format;
+            if (
+                source.Dimension != D3D12_RESOURCE_DIMENSION.D3D12_RESOURCE_DIMENSION_TEXTURE2D
+                || (int)source.Format != format
+                || source.Width < (ulong)pool.Width
+                || source.Height < (uint)pool.Height
+                || subresource >= source.DepthOrArraySize
+            )
+            {
+                throw new ArgumentException(
+                    $"The resource is a {source.Dimension} of {source.Width}x{source.Height}x{source.DepthOrArraySize} in DXGI format {(int)source.Format}; copying slice {subresource} needs a 2D texture of at least {pool.Width}x{pool.Height} in format {format} with that slice.",
+                    nameof(resource)
+                );
+            }
+
+            pool.GetFrame(destination);
+            AVD3D12VAFrame* target = (AVD3D12VAFrame*)destination.NativePointer->data[0];
+            D3D12_RESOURCE_DESC surface = D3D12.GetDescription((nint)target->texture);
+            D3D12PoolWork work = pool.Attachment(static p => new D3D12PoolWork(DeviceOf(p)));
+            work.Copy(
+                resource,
+                subresource,
+                source.DepthOrArraySize,
+                readyFence,
+                readyValue,
+                target,
+                surface.DepthOrArraySize,
+                IsTwoPlane(source.Format) ? 2 : 1,
+                pool.Width,
+                pool.Height
+            );
+        }
     }
+
+    // NV12 and P010, whose chroma is a second plane slice.
+    private static bool IsTwoPlane(Windows.Win32.Graphics.Dxgi.Common.DXGI_FORMAT format) =>
+        format
+            is Windows.Win32.Graphics.Dxgi.Common.DXGI_FORMAT.DXGI_FORMAT_NV12
+                or Windows.Win32.Graphics.Dxgi.Common.DXGI_FORMAT.DXGI_FORMAT_P010;
 
     private static nint DeviceOf(HardwareFramePool pool) =>
         (nint)((AVD3D12VADeviceContext*)pool.Context->device_ctx->hwctx)->device;
@@ -256,12 +346,3 @@ public readonly record struct D3D12Texture(
     nint Fence,
     ulong FenceValue
 );
-
-// The queue a pool orders its imports on, released with the pool.
-[SupportedOSPlatform("windows10.0.10240")]
-internal sealed class D3D12OrderingQueue(nint device) : IDisposable
-{
-    public nint Queue { get; } = D3D12.CreateOrderingQueue(device);
-
-    public void Dispose() => D3D12.Release(Queue);
-}
