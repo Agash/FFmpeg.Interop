@@ -29,7 +29,7 @@ public static unsafe class VideoToolboxExtensions
             if (pool.Format != PixelFormat.VideoToolbox)
             {
                 throw new InvalidOperationException(
-                    $"The pool holds {pool.Format} surfaces, not CVPixelBuffers."
+                    $"The pool holds {pool.Format} surfaces; a pixel buffer needs a VideoToolbox pool."
                 );
             }
 
@@ -65,7 +65,7 @@ public static unsafe class VideoToolboxExtensions
             if (pool.Format != PixelFormat.VideoToolbox)
             {
                 throw new InvalidOperationException(
-                    $"The pool holds {pool.Format} surfaces, not CVPixelBuffers."
+                    $"The pool holds {pool.Format} surfaces; a pixel buffer needs a VideoToolbox pool."
                 );
             }
 
