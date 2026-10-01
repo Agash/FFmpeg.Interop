@@ -60,12 +60,18 @@ public readonly unsafe struct Codec : IEquatable<Codec>
 
     /// <summary>
     /// Whether the encoder applies a rate control change while running
-    /// (<see cref="Encoder.SetRateControl"/>). FFmpeg 9 does so between frames only in NVENC
-    /// (<c>*_nvenc</c>) and libx264; the others read their rate control once, when opened, so a new
-    /// rate there means a new encoder, opened at a key frame.
+    /// (<see cref="Encoder.SetRateControl"/>). FFmpeg 9 does so between frames in NVENC
+    /// (<c>*_nvenc</c>), libx264 and Quick Sync (<c>*_qsv</c>, which resets its session with the new
+    /// rate and no new sequence; MJPEG excepted); the others read their rate control once, when opened,
+    /// so a new rate there means a new encoder, opened at a key frame.
     /// </summary>
     public bool SupportsRateControlChanges =>
-        IsEncoder && (Name.EndsWith("_nvenc", StringComparison.Ordinal) || Name == "libx264");
+        IsEncoder
+        && (
+            Name.EndsWith("_nvenc", StringComparison.Ordinal)
+            || Name == "libx264"
+            || (Name.EndsWith("_qsv", StringComparison.Ordinal) && Name != "mjpeg_qsv")
+        );
 
     /// <summary>The ways the codec can use hardware acceleration.</summary>
     public ImmutableArray<HardwareConfig> HardwareConfigs

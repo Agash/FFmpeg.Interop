@@ -26,6 +26,7 @@ public enum EncoderInput
 /// <list type="bullet">
 /// <item>RequiresNvidia: NVDEC/NVENC through CUDA, D3D11, D3D12 and Vulkan (Windows).</item>
 /// <item>RequiresAmf: an AMD GPU through D3D11 and AMF (Windows).</item>
+/// <item>RequiresQsv: an Intel GPU through Quick Sync (Windows and Linux).</item>
 /// <item>RequiresVaapi: an AMD GPU through VA-API, Vulkan and DRM (Linux).</item>
 /// <item>RequiresVideoToolbox: Apple's media engine (macOS).</item>
 /// </list>
@@ -740,49 +741,43 @@ public sealed class HardwareCodecTests
             }
         );
         Assert.IsTrue(encoder.SupportsRateControlChanges);
-        using Frame frame = new();
-        using Packet packet = new();
-        Random noise = new(3);
-        long before = 0;
-        long after = 0;
-        for (int i = 0; i < 120; i++)
-        {
-            if (i == 60)
-            {
-                encoder.SetRateControl(500_000, 500_000, 250_000);
-                Assert.AreEqual(500_000, encoder.BitRate);
-            }
+        AssertRateFollowsChange(encoder);
+    }
 
-            // Noise is incompressible, so the output size follows the rate control, not the content.
-            frame.AllocateVideo(640, 360, PixelFormat.Nv12);
-            ImagePlane luma = frame.GetWritablePlane(0);
-            for (int row = 0; row < luma.Height; row++)
-            {
-                noise.NextBytes(luma.GetRow(row));
-            }
-
-            frame.PresentationTimestamp = i;
-            foreach (Packet encoded in encoder.Encode(frame, packet))
-            {
-                // The first frames after the change still drain the old rate's buffer.
-                if (encoded.PresentationTimestamp < 60)
-                {
-                    before += encoded.Size;
-                }
-                else if (encoded.PresentationTimestamp >= 75)
-                {
-                    after += encoded.Size;
-                }
-            }
-        }
-
-        double beforeRate = before * 8.0 / 2.0; // 60 frames: two seconds.
-        double afterRate = after * 8.0 / 1.5; // 45 frames: a second and a half.
-        Assert.IsGreaterThan(
-            4.0,
-            beforeRate / afterRate,
-            $"{beforeRate / 1e6:F2} Mb/s before, {afterRate / 1e6:F2} Mb/s after."
+    // Quick Sync takes a rate change by resetting its session; the frames after it follow the new rate.
+    [TestMethod]
+    [TestCategory("RequiresQsv")]
+    public void Qsv_SetRateControl_ChangesTheRateOfTheFollowingFrames()
+    {
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.Qsv,
+            Adapter(GpuVendor.Intel)
         );
+        using Encoder encoder = Encoder.Create(
+            Codec.FindEncoder("h264_qsv"),
+            new VideoEncoderOptions
+            {
+                Width = 640,
+                Height = 360,
+                PixelFormat = PixelFormat.Nv12,
+                TimeBase = new(1, 30),
+                FrameRate = new(30, 1),
+                BitRate = 8_000_000,
+                MaxRate = 8_000_000,
+                BufferSize = 4_000_000,
+                MaxBFrames = 0,
+                LowDelay = true,
+                HardwareDevice = device,
+                CodecOptions = new Dictionary<string, string>
+                {
+                    ["preset"] = "veryfast",
+                    ["low_delay_brc"] = "1",
+                    ["async_depth"] = "1",
+                },
+            }
+        );
+        Assert.IsTrue(encoder.SupportsRateControlChanges);
+        AssertRateFollowsChange(encoder);
     }
 
     [TestMethod]
@@ -1036,6 +1031,55 @@ public sealed class HardwareCodecTests
         "/System/Library/Frameworks/CoreVideo.framework/CoreVideo"
     )]
     private static extern nint CVPixelBufferGetIOSurface(nint pixelBuffer);
+
+    // Encodes four seconds of noise at the encoder's rate, lowers the rate to 500 kb/s after two, and
+    // checks the frames after the change come out at well under a quarter of the size.
+    private static void AssertRateFollowsChange(Encoder encoder)
+    {
+        using Frame frame = new();
+        using Packet packet = new();
+        Random noise = new(3);
+        long before = 0;
+        long after = 0;
+        for (int i = 0; i < 120; i++)
+        {
+            if (i == 60)
+            {
+                encoder.SetRateControl(500_000, 500_000, 250_000);
+                Assert.AreEqual(500_000, encoder.BitRate);
+            }
+
+            // Noise is incompressible, so the output size follows the rate control, not the content.
+            frame.AllocateVideo(640, 360, PixelFormat.Nv12);
+            ImagePlane luma = frame.GetWritablePlane(0);
+            for (int row = 0; row < luma.Height; row++)
+            {
+                noise.NextBytes(luma.GetRow(row));
+            }
+
+            frame.PresentationTimestamp = i;
+            foreach (Packet encoded in encoder.Encode(frame, packet))
+            {
+                // The first frames after the change still drain the old rate's buffer.
+                if (encoded.PresentationTimestamp < 60)
+                {
+                    before += encoded.Size;
+                }
+                else if (encoded.PresentationTimestamp >= 75)
+                {
+                    after += encoded.Size;
+                }
+            }
+        }
+
+        double beforeRate = before * 8.0 / 2.0; // 60 frames: two seconds.
+        double afterRate = after * 8.0 / 1.5; // 45 frames: a second and a half.
+        Assert.IsGreaterThan(
+            4.0,
+            beforeRate / afterRate,
+            $"{beforeRate / 1e6:F2} Mb/s before, {afterRate / 1e6:F2} Mb/s after."
+        );
+    }
 
     internal static GpuAdapter Adapter(GpuVendor vendor)
     {

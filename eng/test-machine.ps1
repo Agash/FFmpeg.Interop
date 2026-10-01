@@ -37,6 +37,7 @@ $vendors = @(Get-GpuVendors | Sort-Object -Unique)
 $suites = [ordered]@{
     RequiresNvidia       = $IsWindows -and $vendors -contains 'Nvidia'
     RequiresAmf          = $IsWindows -and $vendors -contains 'Amd'
+    RequiresQsv          = $vendors -contains 'Intel'
     RequiresVaapi        = $IsLinux -and $vendors -contains 'Amd'
     RequiresVideoToolbox = [bool]$IsMacOS
 }
