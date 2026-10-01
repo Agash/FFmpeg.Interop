@@ -110,6 +110,41 @@ public static unsafe class FFmpegLogging
         }
     }
 
+    /// <summary>
+    /// Sends FFmpeg's log to loggers from <paramref name="factory"/> until the returned route is disposed,
+    /// which sends it back to stderr unless another route or <see cref="UseLoggerFactory"/> has taken
+    /// over since: for a container that owns the factory and may be disposed before the process ends.
+    /// </summary>
+    /// <param name="factory">The logger factory.</param>
+    /// <returns>The route.</returns>
+    public static IDisposable RouteTo(ILoggerFactory factory)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        UseLoggerFactory(factory);
+        return new Route(factory);
+    }
+
+    private sealed class Route(ILoggerFactory factory) : IDisposable
+    {
+        private int _disposed;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            lock (s_gate)
+            {
+                if (ReferenceEquals(s_factory, factory))
+                {
+                    UseLoggerFactory(null);
+                }
+            }
+        }
+    }
+
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void Log(void* context, int level, sbyte* format, void* arguments)
     {

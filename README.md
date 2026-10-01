@@ -78,7 +78,8 @@ What a sender needs from an encoder is there without dropping to the native laye
 - **Capture devices:** `MediaReader.ListDevices("dshow")` lists a format's devices; `MediaReader.OpenDevice("v4l2", "/dev/video0")`
   opens one (`dshow`, `v4l2`, `avfoundation`, `lavfi`).
 - **Logging:** `FFmpegLogging.UseLoggerFactory(loggerFactory)` routes `av_log` to `ILogger`, one
-  category per FFmpeg component class with the codec or format name as a property.
+  category per FFmpeg component class with the codec or format name as a property. `RouteTo` does
+  the same until the returned route is disposed, for a container that owns its factory.
   `FFmpegLogging.Demote()` caps a thread's messages at Debug while it probes, for failures the caller
   expects and reports itself.
 

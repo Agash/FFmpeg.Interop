@@ -410,6 +410,52 @@ public sealed class StreamingTests
     }
 
     [TestMethod]
+    public void Logging_RouteDisposed_StopsOnlyWhileStillCurrent()
+    {
+        CapturingLoggerFactory first = new();
+        CapturingLoggerFactory second = new();
+        FFmpegLogLevel previous = FFmpegLogging.Level;
+        try
+        {
+            FFmpegLogging.Level = FFmpegLogLevel.Info;
+            IDisposable replaced = FFmpegLogging.RouteTo(first);
+            using IDisposable current = FFmpegLogging.RouteTo(second);
+            replaced.Dispose();
+            FeedGarbage();
+            Assert.IsEmpty(first.Entries);
+            Assert.IsNotEmpty(second.Entries, "disposing a replaced route leaves the current one");
+
+            current.Dispose();
+            int seen = second.Entries.Count();
+            FeedGarbage();
+            Assert.AreEqual(seen, second.Entries.Count(), "a disposed route stops");
+        }
+        finally
+        {
+            FFmpegLogging.UseLoggerFactory(null);
+            FFmpegLogging.Level = previous;
+        }
+
+        static void FeedGarbage()
+        {
+            using Decoder decoder = Decoder.Create(
+                Codec.FindDecoder(CodecId.H264),
+                new DecoderOptions { ThreadCount = 1 }
+            );
+            using Packet packet = new();
+            packet.CopyFrom([0, 0, 0, 1, 0x65, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+            try
+            {
+                _ = decoder.TrySend(packet);
+            }
+            catch (FFmpegException)
+            {
+                // Expected: decoding on this thread reports the garbage at once.
+            }
+        }
+    }
+
+    [TestMethod]
     public void Logging_ADisabledLevel_IsNotFormattedOrLogged()
     {
         CapturingLoggerFactory factory = new() { Enabled = false };
