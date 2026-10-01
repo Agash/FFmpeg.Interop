@@ -153,7 +153,22 @@ public sealed class LibraryLoadingTests
         );
 
     [TestMethod]
-    public void ProbeDirectories_ConfiguredFirstThenRuntimesThenBase()
+    public void PackageManagerDirectories_OnMacOS_IncludeHomebrewAndMacPorts()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            Assert.IsEmpty(FFmpegLibraries.PackageManagerDirectories);
+            return;
+        }
+
+        CollectionAssert.AreEqual(
+            new[] { "/opt/homebrew/lib", "/opt/local/lib" },
+            FFmpegLibraries.PackageManagerDirectories.ToArray()
+        );
+    }
+
+    [TestMethod]
+    public void ProbeDirectories_ConfiguredFirstThenRuntimesThenBaseThenPackageManagers()
     {
         string baseDirectory = Path.Combine(Path.GetTempPath(), "app");
 
@@ -163,13 +178,14 @@ public sealed class LibraryLoadingTests
         ];
         string[] withoutConfigured = [.. FFmpegLibraries.ProbeDirectories(null, baseDirectory)];
 
-        Assert.HasCount(3, withConfigured);
+        Assert.HasCount(3 + FFmpegLibraries.PackageManagerDirectories.Length, withConfigured);
         Assert.AreEqual("/opt/ffmpeg", withConfigured[0]);
         Assert.AreEqual(
             Path.Combine(baseDirectory, "runtimes", RuntimeInformation.RuntimeIdentifier, "native"),
             withConfigured[1]
         );
         Assert.AreEqual(baseDirectory, withConfigured[2]);
+        CollectionAssert.AreEqual(FFmpegLibraries.PackageManagerDirectories, withConfigured[3..]);
         CollectionAssert.AreEqual(withConfigured[1..], withoutConfigured);
     }
 }

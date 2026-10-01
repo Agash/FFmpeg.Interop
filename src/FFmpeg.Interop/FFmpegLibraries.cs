@@ -14,8 +14,10 @@ namespace FFmpeg.Interop;
 /// The bindings import each library by its short name (<c>avutil</c>, <c>avcodec</c>, ...). The first
 /// call into any of them installs a resolver that maps the short name to the versioned file for the
 /// current OS and probes, in order: <see cref="SearchDirectory"/> when set,
-/// <c>runtimes/&lt;rid&gt;/native</c> beside the application, the application directory, and finally
-/// the OS loader's default search.
+/// <c>runtimes/&lt;rid&gt;/native</c> beside the application, the application directory, on macOS
+/// the package managers' library directories (Homebrew's <c>/opt/homebrew/lib</c>, MacPorts'
+/// <c>/opt/local/lib</c>), which the loader's own fallback does not search, and finally the OS
+/// loader's default search.
 /// </para>
 /// <para>
 /// A library of another major loads without complaint and then corrupts memory on the first call
@@ -295,7 +297,16 @@ public static class FFmpegLibraries
             "native"
         );
         yield return baseDirectory;
+        foreach (string directory in PackageManagerDirectories)
+        {
+            yield return directory;
+        }
     }
+
+    // Where this OS's package managers install FFmpeg outside the loader's default search. Homebrew on
+    // Intel uses /usr/local/lib, which the macOS loader already falls back to.
+    internal static ImmutableArray<string> PackageManagerDirectories { get; } =
+        OperatingSystem.IsMacOS() ? ["/opt/homebrew/lib", "/opt/local/lib"] : [];
 
     // Every FFmpeg library exports <name>_version() returning AV_VERSION_INT(major, minor, micro),
     // with the major in the top 16 bits.
