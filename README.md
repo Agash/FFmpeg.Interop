@@ -75,7 +75,8 @@ What a sender needs from an encoder is there without dropping to the native laye
   GPU, and `HardwareFramePool.WrapCVPixelBuffer` and `WrapIOSurface` hand a pixel buffer or a bare IOSurface (a Syphon frame) to VideoToolbox.
   D3D11 encoders only take their own pool's surfaces, so `HardwareFramePool.CopyFromD3D11Texture` copies
   a captured texture into one on the GPU.
-- **Capture devices:** `MediaReader.OpenDevice("v4l2", "/dev/video0")`, `dshow`, `avfoundation`, `lavfi`.
+- **Capture devices:** `MediaReader.ListDevices("dshow")` lists a format's devices; `MediaReader.OpenDevice("v4l2", "/dev/video0")`
+  opens one (`dshow`, `v4l2`, `avfoundation`, `lavfi`).
 - **Logging:** `FFmpegLogging.UseLoggerFactory(loggerFactory)` routes `av_log` to `ILogger`, one
   category per FFmpeg component class with the codec or format name as a property.
 
