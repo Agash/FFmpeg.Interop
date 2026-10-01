@@ -129,11 +129,14 @@ public sealed unsafe class MediaReader : IDisposable
                 return [];
             }
 
-            ImmutableArray<CaptureDevice>.Builder devices = ImmutableArray.CreateBuilder<CaptureDevice>(list->nb_devices);
+            ImmutableArray<CaptureDevice>.Builder devices =
+                ImmutableArray.CreateBuilder<CaptureDevice>(list->nb_devices);
             for (int i = 0; i < list->nb_devices; i++)
             {
                 AVDeviceInfo* device = list->devices[i];
-                ImmutableArray<MediaType>.Builder types = ImmutableArray.CreateBuilder<MediaType>(device->nb_media_types);
+                ImmutableArray<MediaType>.Builder types = ImmutableArray.CreateBuilder<MediaType>(
+                    device->nb_media_types
+                );
                 for (int t = 0; t < device->nb_media_types; t++)
                 {
                     types.Add((MediaType)device->media_types[t]);
@@ -286,4 +289,8 @@ public sealed unsafe class MediaStream
 /// <param name="Name">The name to open it by with <see cref="MediaReader.OpenDevice"/>.</param>
 /// <param name="Description">What people call it.</param>
 /// <param name="MediaTypes">The kinds of media it captures; empty when the format does not say.</param>
-public sealed record CaptureDevice(string Name, string Description, ImmutableArray<MediaType> MediaTypes);
+public sealed record CaptureDevice(
+    string Name,
+    string Description,
+    ImmutableArray<MediaType> MediaTypes
+);
