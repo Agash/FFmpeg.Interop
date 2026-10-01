@@ -64,11 +64,30 @@ public static unsafe class FFmpegLogging
     [ThreadStatic]
     private static StringBuilder? t_pending;
 
+    [ThreadStatic]
+    private static int t_demotions;
+
     /// <summary>FFmpeg's log level: messages above it are dropped before they are formatted.</summary>
     public static FFmpegLogLevel Level
     {
         get => (FFmpegLogLevel)av_log_get_level();
         set => av_log_set_level((int)value);
+    }
+
+    /// <summary>
+    /// Logs FFmpeg's messages from this thread at <see cref="LogLevel.Debug"/> at most, until the
+    /// returned scope is disposed on this thread: for a probe whose failures are expected and reported by
+    /// the caller, such as opening an encoder to learn whether the hardware has it.
+    /// </summary>
+    /// <remarks>
+    /// Opening a codec logs on the calling thread; what FFmpeg logs from threads of its own, such as frame
+    /// threads decoding, is not demoted.
+    /// </remarks>
+    /// <returns>The scope; scopes nest.</returns>
+    public static DemotionScope Demote()
+    {
+        t_demotions++;
+        return new DemotionScope(Environment.CurrentManagedThreadId);
     }
 
     /// <summary>
@@ -109,6 +128,11 @@ public static unsafe class FFmpegLogging
                 factory
             );
             LogLevel logLevel = ToLogLevel(level);
+            if (t_demotions > 0 && logLevel > LogLevel.Debug)
+            {
+                logLevel = LogLevel.Debug;
+            }
+
             if (!logger.IsEnabled(logLevel))
             {
                 return;
@@ -187,6 +211,33 @@ public static unsafe class FFmpegLogging
             <= AV_LOG_VERBOSE => LogLevel.Debug,
             _ => LogLevel.Trace,
         };
+
+    /// <summary>The scope of <see cref="Demote"/>.</summary>
+    public readonly struct DemotionScope : IDisposable
+    {
+        private readonly int _thread;
+
+        internal DemotionScope(int thread) => _thread = thread;
+
+        /// <summary>Ends the scope.</summary>
+        /// <exception cref="InvalidOperationException">On a thread other than the one that began it.</exception>
+        public void Dispose()
+        {
+            if (_thread == 0)
+            {
+                return;
+            }
+
+            if (_thread != Environment.CurrentManagedThreadId)
+            {
+                throw new InvalidOperationException(
+                    "A demotion scope ends on the thread that began it."
+                );
+            }
+
+            t_demotions--;
+        }
+    }
 
     // The structured state: {Component} and {Message}, with the template ILogger providers expect.
     internal sealed class LogState(string? component, string message)

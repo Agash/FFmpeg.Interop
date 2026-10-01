@@ -79,6 +79,8 @@ What a sender needs from an encoder is there without dropping to the native laye
   opens one (`dshow`, `v4l2`, `avfoundation`, `lavfi`).
 - **Logging:** `FFmpegLogging.UseLoggerFactory(loggerFactory)` routes `av_log` to `ILogger`, one
   category per FFmpeg component class with the codec or format name as a property.
+  `FFmpegLogging.Demote()` caps a thread's messages at Debug while it probes, for failures the caller
+  expects and reports itself.
 
 ## Building
 

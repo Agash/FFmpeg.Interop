@@ -251,9 +251,14 @@ public sealed class StreamingTests
     {
         // lavfi has no devices to list; the platform's camera format lists whatever is attached.
         Assert.IsEmpty(MediaReader.ListDevices("lavfi"));
-        string cameras = OperatingSystem.IsWindows() ? "dshow" : OperatingSystem.IsMacOS() ? "avfoundation" : "v4l2";
+        string cameras =
+            OperatingSystem.IsWindows() ? "dshow"
+            : OperatingSystem.IsMacOS() ? "avfoundation"
+            : "v4l2";
         Assert.IsTrue(MediaReader.ListDevices(cameras).All(static d => d.Name.Length > 0));
-        _ = Assert.ThrowsExactly<ArgumentException>(() => MediaReader.ListDevices("no-such-format"));
+        _ = Assert.ThrowsExactly<ArgumentException>(() =>
+            MediaReader.ListDevices("no-such-format")
+        );
         _ = Assert.ThrowsExactly<ArgumentNullException>(() => MediaReader.ListDevices(null!));
     }
 
@@ -346,6 +351,62 @@ public sealed class StreamingTests
         Assert.AreEqual("h264", decoderError.Component);
         Assert.IsFalse(decoderError.Message.EndsWith('\n'));
         Assert.AreEqual($"h264: {decoderError.Message}", decoderError.Formatted);
+    }
+
+    [TestMethod]
+    public void Logging_Demoted_LogsAtDebugUntilTheScopeEnds()
+    {
+        CapturingLoggerFactory factory = new();
+        FFmpegLogLevel previous = FFmpegLogging.Level;
+        try
+        {
+            FFmpegLogging.UseLoggerFactory(factory);
+            FFmpegLogging.Level = FFmpegLogLevel.Info;
+            using (FFmpegLogging.Demote())
+            {
+                FeedGarbage();
+            }
+
+            Assert.IsNotEmpty(factory.Entries);
+            Assert.IsTrue(
+                factory.Entries.All(static e => e.Level <= LogLevel.Debug),
+                string.Join(
+                    " | ",
+                    factory.Entries.Select(static e => $"{e.Level} {e.Category} {e.Message}")
+                )
+            );
+
+            FeedGarbage();
+        }
+        finally
+        {
+            FFmpegLogging.UseLoggerFactory(null);
+            FFmpegLogging.Level = previous;
+        }
+
+        Assert.IsTrue(
+            factory.Entries.Any(static e => e.Level >= LogLevel.Warning),
+            "the scope ended"
+        );
+
+        // One thread: FFmpeg's own decoding threads are outside the scope.
+        static void FeedGarbage()
+        {
+            using Decoder decoder = Decoder.Create(
+                Codec.FindDecoder(CodecId.H264),
+                new DecoderOptions { ThreadCount = 1 }
+            );
+            using Packet packet = new();
+            packet.CopyFrom([0, 0, 0, 1, 0x65, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+            try
+            {
+                _ = decoder.TrySend(packet);
+            }
+            catch (FFmpegException)
+            {
+                // Expected: decoding on this thread reports the garbage at once.
+            }
+        }
     }
 
     [TestMethod]
