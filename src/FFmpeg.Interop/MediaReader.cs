@@ -108,6 +108,54 @@ public sealed unsafe class MediaReader : IDisposable
         return Open(device, options, format);
     }
 
+    /// <summary>
+    /// The devices a capture format finds (<c>avdevice_list_input_sources</c>): cameras for <c>v4l2</c> or
+    /// <c>dshow</c>, sound cards for <c>alsa</c> or <c>pulse</c>. Formats that cannot list their devices,
+    /// such as <c>avfoundation</c>, list none.
+    /// </summary>
+    /// <param name="format">The device format's short name.</param>
+    /// <returns>The devices: the name to open each by, and its description.</returns>
+    public static ImmutableArray<CaptureDevice> ListDevices(string format)
+    {
+        ArgumentNullException.ThrowIfNull(format);
+        _ = s_devicesRegistered.Value;
+        AVInputFormat* input = FindInputFormat(format);
+        AVDeviceInfoList* list = null;
+        int result = LibAVDevice.avdevice_list_input_sources(input, null, null, &list);
+        try
+        {
+            if (result < 0)
+            {
+                return [];
+            }
+
+            ImmutableArray<CaptureDevice>.Builder devices = ImmutableArray.CreateBuilder<CaptureDevice>(list->nb_devices);
+            for (int i = 0; i < list->nb_devices; i++)
+            {
+                AVDeviceInfo* device = list->devices[i];
+                ImmutableArray<MediaType>.Builder types = ImmutableArray.CreateBuilder<MediaType>(device->nb_media_types);
+                for (int t = 0; t < device->nb_media_types; t++)
+                {
+                    types.Add((MediaType)device->media_types[t]);
+                }
+
+                devices.Add(
+                    new CaptureDevice(
+                        Marshal.PtrToStringUTF8((nint)device->device_name) ?? string.Empty,
+                        Marshal.PtrToStringUTF8((nint)device->device_description) ?? string.Empty,
+                        types.ToImmutable()
+                    )
+                );
+            }
+
+            return devices.ToImmutable();
+        }
+        finally
+        {
+            LibAVDevice.avdevice_free_list_devices(&list);
+        }
+    }
+
     // libavdevice's formats are found by name only once registered, which is process-wide and idempotent.
     private static readonly Lazy<bool> s_devicesRegistered = new(() =>
     {
@@ -233,3 +281,9 @@ public sealed unsafe class MediaStream
             }
         );
 }
+
+/// <summary>A device a capture format found.</summary>
+/// <param name="Name">The name to open it by with <see cref="MediaReader.OpenDevice"/>.</param>
+/// <param name="Description">What people call it.</param>
+/// <param name="MediaTypes">The kinds of media it captures; empty when the format does not say.</param>
+public sealed record CaptureDevice(string Name, string Description, ImmutableArray<MediaType> MediaTypes);

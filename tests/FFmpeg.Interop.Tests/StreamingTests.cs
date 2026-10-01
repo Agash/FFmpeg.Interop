@@ -247,6 +247,17 @@ public sealed class StreamingTests
     }
 
     [TestMethod]
+    public void ListDevices_AFormatThatCannotList_ListsNoneAndAnUnknownOneThrows()
+    {
+        // lavfi has no devices to list; the platform's camera format lists whatever is attached.
+        Assert.IsEmpty(MediaReader.ListDevices("lavfi"));
+        string cameras = OperatingSystem.IsWindows() ? "dshow" : OperatingSystem.IsMacOS() ? "avfoundation" : "v4l2";
+        Assert.IsTrue(MediaReader.ListDevices(cameras).All(static d => d.Name.Length > 0));
+        _ = Assert.ThrowsExactly<ArgumentException>(() => MediaReader.ListDevices("no-such-format"));
+        _ = Assert.ThrowsExactly<ArgumentNullException>(() => MediaReader.ListDevices(null!));
+    }
+
+    [TestMethod]
     public async Task Open_WithAnExplicitFormat_ReadsARawElementaryStream()
     {
         CancellationToken cancellationToken = TestContext.CancellationToken;
