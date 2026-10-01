@@ -219,6 +219,46 @@ public sealed class HardwareCodecTests
         Assert.AreEqual(PixelFormat.D3D12, d3d12.SurfaceFormat);
     }
 
+    // FFmpeg's VA-API encoder crashes when it is flushed before its first frame, which is what ending
+    // a pipeline whose first frame failed does.
+    [TestMethod]
+    [TestCategory("RequiresVaapi")]
+    [OSCondition(OperatingSystems.Linux)]
+    public void VaapiEncoder_EndedBeforeAnyFrame_FinishesWithNoPackets()
+    {
+        using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.Vaapi);
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            device.SurfaceFormat,
+            PixelFormat.Nv12,
+            TestMedia.Width,
+            TestMedia.Height
+        );
+        using Encoder encoder = Encoder.Create(
+            Codec.FindEncoder("h264_vaapi"),
+            new VideoEncoderOptions
+            {
+                Width = TestMedia.Width,
+                Height = TestMedia.Height,
+                PixelFormat = pool.Format,
+                TimeBase = new(1, TestMedia.FrameRate),
+                FrameRate = new(TestMedia.FrameRate, 1),
+                BitRate = 4_000_000,
+                MaxBFrames = 0,
+                HardwareFrames = pool,
+            }
+        );
+        using Packet packet = new();
+
+        int packets = 0;
+        foreach (Packet _ in encoder.Encode(null, packet))
+        {
+            packets++;
+        }
+
+        Assert.AreEqual(0, packets);
+    }
+
     [TestMethod]
     [TestCategory("RequiresNvidia")]
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]

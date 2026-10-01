@@ -105,6 +105,10 @@ public sealed record AudioEncoderOptions : EncoderOptions
 /// <summary>Turns frames into packets.</summary>
 public sealed unsafe class Encoder : CodecContext
 {
+    // Whether a frame was ever accepted, and whether end of stream came before one was.
+    private bool _fed;
+    private bool _endedUnfed;
+
     private Encoder(Codec codec)
         : base(codec) { }
 
@@ -267,6 +271,11 @@ public sealed unsafe class Encoder : CodecContext
     public CodecStatus Receive(Packet packet)
     {
         ArgumentNullException.ThrowIfNull(packet);
+        if (_endedUnfed)
+        {
+            return CodecStatus.EndOfStream;
+        }
+
         AVCodecContext* context = NativePointer;
         CodecStatus status = Status(
             avcodec_receive_packet(context, packet.NativePointer),
@@ -351,6 +360,14 @@ public sealed unsafe class Encoder : CodecContext
 
     private bool Send(AVFrame* frame)
     {
+        // End of stream for an encoder that never took a frame ends here: there is nothing to drain,
+        // and hardware encoders (VA-API among them) dereference state their first frame sets up.
+        if (frame is null && !_fed)
+        {
+            _endedUnfed = true;
+            return true;
+        }
+
         int result = avcodec_send_frame(NativePointer, frame);
         if (result == LibAVUtil.AVERROR_EAGAIN)
         {
@@ -363,6 +380,7 @@ public sealed unsafe class Encoder : CodecContext
         }
 
         FFmpegError.ThrowIfError(result, "avcodec_send_frame");
+        _fed |= frame is not null;
         return true;
     }
 

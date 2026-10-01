@@ -134,6 +134,32 @@ public sealed class CodecApiTests
     }
 
     [TestMethod]
+    public void Encoder_EndOfStreamBeforeAnyFrame_FinishesWithNoPackets()
+    {
+        using Encoder encoder = Encoder.Create(
+            Codec.FindEncoder(Media.FirstEncoder(Media.H264Encoders)),
+            new VideoEncoderOptions
+            {
+                Width = 64,
+                Height = 64,
+                PixelFormat = PixelFormat.Yuv420P,
+                TimeBase = new(1, 30),
+                ThreadCount = 1,
+            }
+        );
+        using Packet packet = new();
+
+        int packets = 0;
+        foreach (Packet _ in encoder.Encode(null, packet))
+        {
+            packets++;
+        }
+
+        Assert.AreEqual(0, packets);
+        Assert.AreEqual(CodecStatus.EndOfStream, encoder.Receive(packet));
+    }
+
+    [TestMethod]
     public void Encoder_ManualSendAndReceive_ProducesPacketsThenEndOfStream()
     {
         using Encoder encoder = Encoder.Create(
