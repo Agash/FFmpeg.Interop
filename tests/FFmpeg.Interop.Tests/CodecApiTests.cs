@@ -183,6 +183,7 @@ public sealed class CodecApiTests
 
         using Frame frame = new();
         frame.AllocateVideo(64, 64, PixelFormat.Yuv420P);
+        frame.FillBlack();
         using Packet packet = new();
         int packets = 0;
         int keyFrames = 0;

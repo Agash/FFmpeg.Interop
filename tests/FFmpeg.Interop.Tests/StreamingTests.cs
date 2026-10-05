@@ -57,6 +57,7 @@ public sealed class StreamingTests
         for (int i = 0; i < 12; i++)
         {
             frame.AllocateVideo(64, 64, PixelFormat.Yuv420P);
+            frame.FillBlack();
             frame.GetWritablePlane(0).GetRow(i % 64).Fill(0xFF);
             frame.PresentationTimestamp = i;
             frame.PictureType = i is 5 or 9 ? PictureType.I : PictureType.None;

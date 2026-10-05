@@ -87,6 +87,7 @@ public sealed class ConversionTests
         using Scaler scaler = new();
         using Frame source = new();
         source.AllocateVideo(64, 64, PixelFormat.Yuv420P);
+        source.FillBlack();
         using Frame destination = new();
 
         foreach ((int w, int h) in new[] { (32, 32), (128, 96), (32, 32) })
@@ -114,8 +115,8 @@ public sealed class ConversionTests
         using Scaler scaler = new();
         using Frame source = new();
         source.AllocateVideo(64, 64, PixelFormat.Yuv420P);
-        source.GetWritablePlane(0).GetRow(0).Fill(16);
         source.ColorRange = ColorRange.Limited;
+        source.FillBlack();
         source.ColorSpace = ColorSpace.Bt709;
         source.ColorPrimaries = ColorPrimaries.Bt709;
         using Frame destination = new();
