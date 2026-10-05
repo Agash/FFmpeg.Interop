@@ -28,6 +28,54 @@ public sealed class FrameTests
     }
 
     [TestMethod]
+    [DataRow(ColorRange.Limited, (byte)16)]
+    [DataRow(ColorRange.Full, (byte)0)]
+    public void FillBlack_Yuv420P_SetsBlackAtTheRangesLevel(ColorRange range, byte luma)
+    {
+        using Frame frame = new();
+        frame.AllocateVideo(33, 17, PixelFormat.Yuv420P);
+        frame.ColorRange = range;
+
+        frame.FillBlack();
+
+        for (int plane = 0; plane < 3; plane++)
+        {
+            ReadOnlyImagePlane pixels = frame.GetPlane(plane);
+            byte expected = plane == 0 ? luma : (byte)128;
+            for (int row = 0; row < pixels.Height; row++)
+            {
+                Assert.IsFalse(
+                    pixels.GetRow(row).ContainsAnyExcept(expected),
+                    $"plane {plane} row {row}"
+                );
+            }
+        }
+    }
+
+    [TestMethod]
+    public void FillBlack_OnSharedData_LeavesTheOtherReferenceAlone()
+    {
+        using Frame original = new();
+        original.AllocateVideo(8, 8, PixelFormat.Rgb24);
+        original.GetWritablePlane(0).GetRow(0).Fill(200);
+        using Frame shared = new();
+        shared.Reference(original);
+
+        shared.FillBlack();
+
+        Assert.IsFalse(shared.GetPlane(0).GetRow(0).ContainsAnyExcept((byte)0));
+        Assert.IsFalse(original.GetPlane(0).GetRow(0).ContainsAnyExcept((byte)200));
+    }
+
+    [TestMethod]
+    public void FillBlack_WithoutAPicture_Throws()
+    {
+        using Frame frame = new();
+
+        _ = Assert.ThrowsExactly<InvalidOperationException>(frame.FillBlack);
+    }
+
+    [TestMethod]
     public void CopyImageFromAndTo_RoundTripsThePackedPicture()
     {
         using Frame frame = new();

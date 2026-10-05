@@ -174,7 +174,8 @@ public sealed unsafe class Frame : IDisposable
     public bool IsHardwareFrame => NativePointer->hw_frames_ctx is not null;
 
     /// <summary>
-    /// Allocates new picture buffers, releasing any the frame held.
+    /// Allocates new picture buffers, releasing any the frame held. Their contents are undefined until
+    /// written; <see cref="FillBlack"/> gives them a defined picture.
     /// </summary>
     /// <param name="width">The width in pixels.</param>
     /// <param name="height">The height in pixels.</param>
@@ -198,6 +199,33 @@ public sealed unsafe class Frame : IDisposable
         frame->height = height;
         frame->format = (int)format.Value;
         FFmpegError.ThrowIfError(av_frame_get_buffer(frame, alignment));
+    }
+
+    /// <summary>
+    /// Sets the whole picture to black in the frame's pixel format, made writable first, at the black
+    /// level its <see cref="ColorRange"/> gives (16 for limited-range luma, 0 for full range).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The frame holds no system-memory picture.</exception>
+    public void FillBlack()
+    {
+        AVFrame* frame = SoftwareVideoFrame();
+        MakeWritable();
+        nint* lineSizes = stackalloc nint[4];
+        for (int plane = 0; plane < 4; plane++)
+        {
+            lineSizes[plane] = frame->linesize[plane];
+        }
+
+        FFmpegError.ThrowIfError(
+            av_image_fill_black(
+                (byte**)&frame->data,
+                lineSizes,
+                (AVPixelFormat)frame->format,
+                frame->color_range,
+                frame->width,
+                frame->height
+            )
+        );
     }
 
     /// <summary>Allocates new sample buffers, releasing any the frame held.</summary>
