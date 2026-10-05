@@ -69,11 +69,6 @@ public sealed record DecoderOptions
 /// </example>
 public sealed unsafe class Decoder : CodecContext
 {
-    // What the get_format callback needs, in native memory the context's opaque pointer names: the
-    // callback is static and must not reach managed state through a handle it would have to look up on
-    // every stream change.
-    private SelectionState* _selection;
-
     private Decoder(Codec codec)
         : base(codec) { }
 
@@ -142,12 +137,16 @@ public sealed unsafe class Decoder : CodecContext
             {
                 PixelFormat format = HardwareFormat(codec, device.Type);
                 context->hw_device_ctx = device.NewReference();
-                decoder._selection = SelectionState.Allocate(
-                    format,
-                    options.AllowSoftwareFallback,
-                    options.DrmModifiers.IsDefault ? [] : options.DrmModifiers.AsSpan()
+                // What the get_format callback needs, in native memory the context's opaque pointer
+                // names: the callback is static and must not reach managed state through a handle it
+                // would have to look up on every stream change.
+                decoder.SetCallbackState(
+                    SelectionState.Allocate(
+                        format,
+                        options.AllowSoftwareFallback,
+                        options.DrmModifiers.IsDefault ? [] : options.DrmModifiers.AsSpan()
+                    )
                 );
-                context->opaque = decoder._selection;
                 context->get_format = &SelectFormat;
             }
 
@@ -233,12 +232,6 @@ public sealed unsafe class Decoder : CodecContext
         }
 
         throw new NotSupportedException($"{codec} cannot decode on a {type} device.");
-    }
-
-    private protected override void Disposed()
-    {
-        NativeMemory.Free(_selection);
-        _selection = null;
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]

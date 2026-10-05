@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using FFmpeg.Interop.Native;
 using Microsoft.Win32.SafeHandles;
 
@@ -62,7 +63,20 @@ internal sealed unsafe class SafePacketHandle()
 internal sealed unsafe class SafeCodecContextHandle()
     : SafeHandleZeroOrMinusOneIsInvalid(ownsHandle: true)
 {
+    // Native memory the context's opaque pointer names, freed with the context: the callbacks that read
+    // it can run for as long as the context lives, and no longer.
+    private void* _opaque;
+
     public AVCodecContext* Pointer => (AVCodecContext*)handle;
+
+    // Hands the context native memory from NativeMemory to point its opaque field at, for the
+    // context's callbacks.
+    public void SetOpaque(void* state)
+    {
+        NativeMemory.Free(_opaque);
+        _opaque = state;
+        Pointer->opaque = state;
+    }
 
     public static SafeCodecContextHandle Allocate(AVCodec* codec)
     {
@@ -81,6 +95,8 @@ internal sealed unsafe class SafeCodecContextHandle()
     {
         AVCodecContext* context = (AVCodecContext*)handle;
         LibAVCodec.avcodec_free_context(&context);
+        NativeMemory.Free(_opaque);
+        _opaque = null;
         return true;
     }
 }
