@@ -116,6 +116,26 @@ public sealed class HardwareCodecTests
     public Task VulkanDecode_IsBitExactWithSoftwareDecode(string clip, GpuVendor vendor) =>
         AssertDecodeMatchesSoftwareAsync(clip, vendor, "vulkan", decoder: null);
 
+    // Linux's zero-copy decode: pictures decoded into DMA-BUFs another device reads in place.
+    [TestMethod]
+    [TestCategory("RequiresHardwareDecoder")]
+    [TestCategory("RequiresVulkan")]
+    [OSCondition(OperatingSystems.Linux)]
+    [DataRow("h264", GpuVendor.Nvidia)]
+    [DataRow("hevc", GpuVendor.Nvidia)]
+    [DataRow("av1", GpuVendor.Nvidia)]
+    [DataRow("h264", GpuVendor.Amd)]
+    [DataRow("hevc", GpuVendor.Amd)]
+    [DataRow("av1", GpuVendor.Amd)]
+    public Task VulkanDecode_IntoDmaBufs_IsBitExactWhereShared(string clip, GpuVendor vendor) =>
+        AssertDecodeMatchesSoftwareAsync(
+            clip,
+            vendor,
+            "vulkan",
+            decoder: null,
+            sharedAsDmaBufs: true
+        );
+
     [TestMethod]
     [TestCategory("RequiresHardwareDecoder")]
     [TestCategory("RequiresVideoToolbox")]
@@ -1131,7 +1151,8 @@ public sealed class HardwareCodecTests
         string clip,
         GpuVendor vendor,
         string deviceType,
-        string? decoder
+        string? decoder,
+        bool sharedAsDmaBufs = false
     )
     {
         string path = await TestMedia.ClipAsync(clip, TestContext.CancellationToken);
@@ -1160,6 +1181,11 @@ public sealed class HardwareCodecTests
             );
         }
 
+        // A consumer of the shared pictures: another Vulkan device, reading each one from its DMA-BUF.
+        using HardwareDevice? consumer = sharedAsDmaBufs
+            ? HardwareDevice.Create(HardwareDeviceType.Vulkan, Adapter(vendor))
+            : null;
+        HardwareFramePool? imports = null;
         List<string> hardware = [];
         using (MediaReader reader = MediaReader.Open(path))
         using (
@@ -1167,7 +1193,11 @@ public sealed class HardwareCodecTests
                 .Streams[0]
                 .CreateDecoder(
                     decoder is null ? null : Codec.FindDecoder(decoder),
-                    new DecoderOptions { HardwareDevice = device }
+                    new DecoderOptions
+                    {
+                        HardwareDevice = device,
+                        DrmModifiers = sharedAsDmaBufs ? [LinearModifier] : [],
+                    }
                 )
         )
         using (Packet packet = new())
@@ -1184,7 +1214,28 @@ public sealed class HardwareCodecTests
             {
                 Assert.IsTrue(decoded.IsHardwareFrame, $"{deviceType} produced a software frame.");
                 downloaded.Reset();
-                decoded.TransferTo(downloaded);
+                if (consumer is not null && OperatingSystem.IsLinux())
+                {
+                    using Frame drm = new();
+                    drm.PixelFormat = PixelFormat.DrmPrime;
+                    decoded.MapTo(drm, HardwareMapAccess.Read);
+                    DrmPrimeImage image = HardwareTests.SingleLayer(drm);
+                    Assert.AreEqual(LinearModifier, image.Objects[0].Modifier);
+                    imports ??= HardwareFramePool.Create(
+                        consumer,
+                        PixelFormat.Vulkan,
+                        PixelFormat.Nv12,
+                        decoded.Width,
+                        decoded.Height
+                    );
+                    using Frame mapped = new();
+                    drm.MapTo(imports, mapped, HardwareMapAccess.Read);
+                    mapped.TransferTo(downloaded);
+                }
+                else
+                {
+                    decoded.TransferTo(downloaded);
+                }
 
                 // Surfaces come back as NV12; rearranging chroma planes is lossless.
                 planar.Width = downloaded.Width;
@@ -1208,12 +1259,15 @@ public sealed class HardwareCodecTests
             }
         }
 
+        imports?.Dispose();
         CollectionAssert.AreEqual(
             software,
             hardware,
             $"{clip} on {deviceType} differs from the software decoder."
         );
     }
+
+    private const ulong LinearModifier = 0;
 
     private async Task AssertEncodeAsync(
         string encoder,

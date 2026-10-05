@@ -263,12 +263,20 @@ public sealed unsafe class SurfaceViewTests
     )
     {
         AVCodecContext context = default;
-        context.opaque = (void*)(nint)((long)(int)wanted | (fallback ? Decoder.FallbackFlag : 0));
-        fixed (AVPixelFormat* formats = offered)
+        Decoder.SelectionState* state = Decoder.SelectionState.Allocate(wanted, fallback, []);
+        context.opaque = state;
+        try
         {
-            delegate* unmanaged[Cdecl]<AVCodecContext*, AVPixelFormat*, AVPixelFormat> select =
-                &Decoder.SelectFormat;
-            return select(&context, formats);
+            fixed (AVPixelFormat* formats = offered)
+            {
+                delegate* unmanaged[Cdecl]<AVCodecContext*, AVPixelFormat*, AVPixelFormat> select =
+                    &Decoder.SelectFormat;
+                return select(&context, formats);
+            }
+        }
+        finally
+        {
+            System.Runtime.InteropServices.NativeMemory.Free(state);
         }
     }
 

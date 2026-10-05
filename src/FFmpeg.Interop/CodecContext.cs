@@ -78,8 +78,12 @@ public abstract unsafe class CodecContext : IDisposable
     public void Dispose()
     {
         _handle.Dispose();
+        Disposed();
         GC.SuppressFinalize(this);
     }
+
+    // Releases what the native context pointed at, once the context is gone and no callback can run.
+    private protected virtual void Disposed() { }
 
     private protected void Open(IReadOnlyDictionary<string, string>? options)
     {

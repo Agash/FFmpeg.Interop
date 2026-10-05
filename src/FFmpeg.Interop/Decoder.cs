@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using FFmpeg.Interop.Native;
@@ -46,6 +47,15 @@ public sealed record DecoderOptions
 
     /// <summary>Codec-private options, as <c>ffmpeg -c:v name -option value</c> takes them. Unknown names are an error.</summary>
     public IReadOnlyDictionary<string, string>? CodecOptions { get; init; }
+
+    /// <summary>
+    /// On a <see cref="HardwareDeviceType.Vulkan"/> device (Linux), DRM format modifiers to decode into,
+    /// on memory that can be exported, so <see cref="Frame.MapTo(Frame, HardwareMapAccess)"/> to
+    /// <see cref="PixelFormat.DrmPrime"/> shares each picture as a DMA-BUF without a copy. The driver picks
+    /// among those of them it can decode into, and a stream none of them suits fails to decode. Empty
+    /// keeps FFmpeg's own surfaces, which stay on the device.
+    /// </summary>
+    public ImmutableArray<ulong> DrmModifiers { get; init; } = [];
 }
 
 /// <summary>Turns packets into frames.</summary>
@@ -59,10 +69,10 @@ public sealed record DecoderOptions
 /// </example>
 public sealed unsafe class Decoder : CodecContext
 {
-    // The hardware pixel format the get_format callback picks, and whether it may fall back to
-    // software, are packed into the context's opaque pointer: the callback is static and must not
-    // reach managed state through a handle it would have to look up on every stream change.
-    internal const long FallbackFlag = 1L << 32;
+    // What the get_format callback needs, in native memory the context's opaque pointer names: the
+    // callback is static and must not reach managed state through a handle it would have to look up on
+    // every stream change.
+    private SelectionState* _selection;
 
     private Decoder(Codec codec)
         : base(codec) { }
@@ -117,14 +127,27 @@ public sealed unsafe class Decoder : CodecContext
                 context->ch_layout = layout.ToNative();
             }
 
+            if (
+                !options.DrmModifiers.IsDefaultOrEmpty
+                && options.HardwareDevice?.Type != HardwareDeviceType.Vulkan
+            )
+            {
+                throw new ArgumentException(
+                    "DRM format modifiers are for decoding on a Vulkan device.",
+                    nameof(options)
+                );
+            }
+
             if (options.HardwareDevice is { } device)
             {
                 PixelFormat format = HardwareFormat(codec, device.Type);
                 context->hw_device_ctx = device.NewReference();
-                context->opaque = (void*)
-                    (nint)(
-                        (long)(int)format.Value | (options.AllowSoftwareFallback ? FallbackFlag : 0)
-                    );
+                decoder._selection = SelectionState.Allocate(
+                    format,
+                    options.AllowSoftwareFallback,
+                    options.DrmModifiers.IsDefault ? [] : options.DrmModifiers.AsSpan()
+                );
+                context->opaque = decoder._selection;
                 context->get_format = &SelectFormat;
             }
 
@@ -212,19 +235,33 @@ public sealed unsafe class Decoder : CodecContext
         throw new NotSupportedException($"{codec} cannot decode on a {type} device.");
     }
 
+    private protected override void Disposed()
+    {
+        NativeMemory.Free(_selection);
+        _selection = null;
+    }
+
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     internal static AVPixelFormat SelectFormat(AVCodecContext* context, AVPixelFormat* offered)
     {
-        long state = (nint)context->opaque;
-        AVPixelFormat wanted = (AVPixelFormat)(int)state;
+        SelectionState* state = (SelectionState*)context->opaque;
+        AVPixelFormat wanted = state->Format;
         AVPixelFormat software = AVPixelFormat.AV_PIX_FMT_NONE;
         for (AVPixelFormat* format = offered; *format != AVPixelFormat.AV_PIX_FMT_NONE; format++)
         {
             if (*format == wanted)
             {
-                return wanted != AVPixelFormat.AV_PIX_FMT_D3D12 || AlignD3D12Surfaces(context)
-                    ? wanted
-                    : AVPixelFormat.AV_PIX_FMT_NONE;
+                bool ready = wanted switch
+                {
+                    AVPixelFormat.AV_PIX_FMT_D3D12 => AlignD3D12Surfaces(context),
+                    AVPixelFormat.AV_PIX_FMT_VULKAN when state->ModifierCount > 0 =>
+                        VulkanDecodeExport.Configure(
+                            context,
+                            new ReadOnlySpan<ulong>(state->Modifiers, state->ModifierCount)
+                        ),
+                    _ => true,
+                };
+                return ready ? wanted : AVPixelFormat.AV_PIX_FMT_NONE;
             }
 
             if (software == AVPixelFormat.AV_PIX_FMT_NONE && !((PixelFormat)(*format)).IsHardware)
@@ -234,7 +271,44 @@ public sealed unsafe class Decoder : CodecContext
         }
 
         // Returning NONE makes the decoder fail the stream, which is the point when no fallback is allowed.
-        return (state & FallbackFlag) != 0 ? software : AVPixelFormat.AV_PIX_FMT_NONE;
+        return state->Fallback ? software : AVPixelFormat.AV_PIX_FMT_NONE;
+    }
+
+    // The hardware format to pick, whether software may stand in, and the DRM format modifiers to
+    // decode into, the modifiers following the struct.
+    internal struct SelectionState
+    {
+        public AVPixelFormat Format;
+        public bool Fallback;
+        public int ModifierCount;
+
+        public ulong* Modifiers
+        {
+            get
+            {
+                fixed (SelectionState* self = &this)
+                {
+                    return (ulong*)(self + 1);
+                }
+            }
+        }
+
+        public static SelectionState* Allocate(
+            PixelFormat format,
+            bool fallback,
+            ReadOnlySpan<ulong> modifiers
+        )
+        {
+            var state = (SelectionState*)
+                NativeMemory.AllocZeroed(
+                    (nuint)(sizeof(SelectionState) + (modifiers.Length * sizeof(ulong)))
+                );
+            state->Format = format.Value;
+            state->Fallback = fallback;
+            state->ModifierCount = modifiers.Length;
+            modifiers.CopyTo(new Span<ulong>(state->Modifiers, modifiers.Length));
+            return state;
+        }
     }
 
     // FFmpeg 9 sizes D3D12 decode surfaces to the display size, where its D3D11 and DXVA2 paths use the
