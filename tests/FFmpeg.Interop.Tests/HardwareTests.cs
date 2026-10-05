@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using FFmpeg.Interop.Native;
+
 namespace FFmpeg.Interop.Tests;
 
 /// <summary>
@@ -105,6 +108,109 @@ public sealed class HardwareTests
                 Assert.IsTrue(threw);
             }
         );
+    }
+
+    [TestMethod]
+    [TestCategory("RequiresVulkan")]
+    [DataRow("nv12")]
+    [DataRow("yuv420p")]
+    [DataRow("bgra")]
+    public void VulkanFrames_CopyTo_CopiesThePictureOnTheGpu(string format)
+    {
+        using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.Vulkan);
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Parse(format),
+            64,
+            48
+        );
+        (Frame source, byte[] pixels) = Uploaded(pool, seed: 21);
+        using (source)
+        {
+            using Frame copy = new();
+            pool.GetFrame(copy);
+            source.PresentationTimestamp = 42;
+
+            source.CopyTo(copy);
+
+            Assert.AreEqual(42, copy.PresentationTimestamp);
+            CollectionAssert.AreEqual(pixels, Downloaded(copy));
+            CollectionAssert.AreEqual(pixels, Downloaded(source), "the source is left as it was");
+        }
+    }
+
+    // The path a DMA-BUF takes into a Vulkan encoder: mapped into Vulkan (an image the encoder cannot
+    // read from directly), then copied into a surface of the encoder's own pool.
+    [TestMethod]
+    [TestCategory("RequiresVulkan")]
+    [OSCondition(OperatingSystems.Linux)]
+    public void VulkanCopyTo_FromAMappedDmaBuf_CopiesThePicture()
+    {
+        using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.Vulkan);
+        RequireDmaBufSharing(device);
+
+        using HardwareFramePool producer = DmaBufProducer(device, 64, 48);
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using HardwareFramePool imports = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        (Frame source, byte[] pixels) = Uploaded(producer, seed: 23);
+        using (source)
+        {
+            using Frame drm = new();
+            drm.PixelFormat = PixelFormat.DrmPrime;
+            source.MapTo(drm, HardwareMapAccess.Read);
+            using Frame mapped = new();
+            drm.MapTo(imports, mapped, HardwareMapAccess.Read);
+            using Frame copy = new();
+            pool.GetFrame(copy);
+
+            mapped.CopyTo(copy);
+
+            CollectionAssert.AreEqual(pixels, Downloaded(copy));
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("RequiresVulkan")]
+    public void VulkanFrames_CopyToAnotherSizeOrSystemMemory_Throws()
+    {
+        using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.Vulkan);
+        using HardwareFramePool small = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using HardwareFramePool large = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Nv12,
+            128,
+            96
+        );
+        using Frame from = new();
+        small.GetFrame(from);
+        using Frame to = new();
+        large.GetFrame(to);
+        using Frame system = new();
+        system.AllocateVideo(64, 48, PixelFormat.Nv12);
+
+        _ = Assert.ThrowsExactly<ArgumentException>(() => from.CopyTo(to));
+        _ = Assert.ThrowsExactly<NotSupportedException>(() => from.CopyTo(system));
+        _ = Assert.ThrowsExactly<NotSupportedException>(() => system.CopyTo(from));
     }
 
     [TestMethod]
@@ -251,6 +357,115 @@ public sealed class HardwareTests
     {
         const uint D3D11BindDecoder = 0x200;
         ((Native.AVD3D11VAFramesContext*)pool.Context->hwctx)->BindFlags = D3D11BindDecoder;
+    }
+
+    // DRM_FORMAT_NV12.
+    internal const uint Nv12Fourcc = 0x3231564E;
+
+    // The list a DMA-BUF producer's pool allocates from: linear, which every importer reads. Lives as long
+    // as the process, as the pools that point at it allocate lazily.
+    private static readonly unsafe VkImageDrmFormatModifierListCreateInfoEXT* LinearOnly = Linear();
+
+    private static unsafe VkImageDrmFormatModifierListCreateInfoEXT* Linear()
+    {
+        ulong* modifiers = (ulong*)
+            System.Runtime.InteropServices.NativeMemory.AllocZeroed(sizeof(ulong));
+        var list = (VkImageDrmFormatModifierListCreateInfoEXT*)
+            System.Runtime.InteropServices.NativeMemory.AllocZeroed(
+                (nuint)sizeof(VkImageDrmFormatModifierListCreateInfoEXT)
+            );
+        list->sType =
+            VkStructureType.VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT;
+        list->drmFormatModifierCount = 1;
+        list->pDrmFormatModifiers = modifiers;
+        return list;
+    }
+
+    // A pool that hands its pictures out as DMA-BUFs, the way a producer allocates them: linear images
+    // the application uploads into and others read.
+    internal static HardwareFramePool DmaBufProducer(
+        HardwareDevice device,
+        int width,
+        int height
+    ) =>
+        HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Nv12,
+            width,
+            height,
+            configure: static pool =>
+            {
+                unsafe
+                {
+                    var frames = (AVVulkanFramesContext*)pool.Context->hwctx;
+                    frames->tiling = VkImageTiling.VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
+                    frames->usage =
+                        VkImageUsageFlagBits.VK_IMAGE_USAGE_TRANSFER_DST_BIT
+                        | VkImageUsageFlagBits.VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                        | VkImageUsageFlagBits.VK_IMAGE_USAGE_SAMPLED_BIT;
+                    frames->create_pnext = LinearOnly;
+                }
+            }
+        );
+
+    // A mapped picture as one NV12 layer: FFmpeg's mappings describe each plane as a layer of its own.
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    internal static DrmPrimeImage SingleLayer(Frame drm)
+    {
+        Assert.IsTrue(drm.TryGetDrmFrame(out DrmFrameDescriptor descriptor));
+        ImmutableArray<DrmObject>.Builder objects = ImmutableArray.CreateBuilder<DrmObject>();
+        for (int i = 0; i < descriptor.ObjectCount; i++)
+        {
+            objects.Add(descriptor.GetObject(i));
+        }
+
+        ImmutableArray<DrmPlane>.Builder planes = ImmutableArray.CreateBuilder<DrmPlane>();
+        for (int layer = 0; layer < descriptor.LayerCount; layer++)
+        {
+            for (int plane = 0; plane < descriptor.GetPlaneCount(layer); plane++)
+            {
+                planes.Add(descriptor.GetPlane(layer, plane));
+            }
+        }
+
+        return new DrmPrimeImage(
+            objects.ToImmutable(),
+            [new DrmLayer(Nv12Fourcc, planes.ToImmutable())]
+        );
+    }
+
+    private static void RequireDmaBufSharing(HardwareDevice device)
+    {
+        if (
+            !device.VulkanDeviceExtensions.Contains("VK_EXT_external_memory_dma_buf")
+            || !device.VulkanDeviceExtensions.Contains("VK_EXT_image_drm_format_modifier")
+        )
+        {
+            Assert.Inconclusive("This Vulkan driver cannot share images as DMA-BUFs.");
+        }
+    }
+
+    // A pool surface holding a random picture, and the picture's packed bytes.
+    private static (Frame Surface, byte[] Pixels) Uploaded(HardwareFramePool pool, int seed)
+    {
+        using Frame picture = new();
+        picture.AllocateVideo(pool.Width, pool.Height, pool.SoftwareFormat);
+        byte[] pixels = new byte[picture.GetImageSize()];
+        new Random(seed).NextBytes(pixels);
+        picture.CopyImageFrom(pixels);
+        Frame surface = new();
+        pool.Upload(picture, surface);
+        return (surface, pixels);
+    }
+
+    private static byte[] Downloaded(Frame surface)
+    {
+        using Frame picture = new();
+        surface.TransferTo(picture);
+        byte[] pixels = new byte[picture.GetImageSize()];
+        _ = picture.CopyImageTo(pixels);
+        return pixels;
     }
 
     private static void RoundTrip(

@@ -76,6 +76,41 @@ public sealed class FrameTests
     }
 
     [TestMethod]
+    public void CopyTo_SystemMemory_CopiesThePictureAndProperties()
+    {
+        using Frame source = new();
+        source.AllocateVideo(33, 17, PixelFormat.Yuv420P);
+        byte[] pixels = new byte[source.GetImageSize()];
+        new Random(5).NextBytes(pixels);
+        source.CopyImageFrom(pixels);
+        source.PresentationTimestamp = 7;
+        using Frame copy = new();
+        copy.AllocateVideo(33, 17, PixelFormat.Yuv420P);
+
+        source.CopyTo(copy);
+
+        byte[] copied = new byte[copy.GetImageSize()];
+        _ = copy.CopyImageTo(copied);
+        CollectionAssert.AreEqual(pixels, copied);
+        Assert.AreEqual(7, copy.PresentationTimestamp);
+    }
+
+    [TestMethod]
+    public void CopyTo_AnotherSizeOrFormat_Throws()
+    {
+        using Frame source = new();
+        source.AllocateVideo(16, 16, PixelFormat.Yuv420P);
+        using Frame smaller = new();
+        smaller.AllocateVideo(8, 8, PixelFormat.Yuv420P);
+        using Frame rgb = new();
+        rgb.AllocateVideo(16, 16, PixelFormat.Rgb24);
+
+        _ = Assert.ThrowsExactly<ArgumentException>(() => source.CopyTo(smaller));
+        _ = Assert.ThrowsExactly<ArgumentException>(() => source.CopyTo(rgb));
+        _ = Assert.ThrowsExactly<ArgumentNullException>(() => source.CopyTo(null!));
+    }
+
+    [TestMethod]
     public void CopyImageFromAndTo_RoundTripsThePackedPicture()
     {
         using Frame frame = new();

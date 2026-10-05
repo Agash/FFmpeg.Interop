@@ -489,6 +489,52 @@ public sealed unsafe class Frame : IDisposable
     }
 
     /// <summary>
+    /// Copies this frame's picture and properties into <paramref name="destination"/>, which already holds
+    /// a picture of the same size and format: on the CPU for system-memory frames, on the GPU for two
+    /// Vulkan frames of one device. A GPU copy has finished when this returns, so the source may be
+    /// released (a mapped frame unmapped) straight after.
+    /// </summary>
+    /// <param name="destination">
+    /// The target: an allocated system-memory picture, or a surface from a <see cref="HardwareFramePool"/>.
+    /// </param>
+    /// <exception cref="ArgumentException">The frames differ in size, format or device.</exception>
+    /// <exception cref="NotSupportedException">Hardware frames other than Vulkan, or a hardware and a
+    /// system-memory frame (use <see cref="TransferTo"/>).</exception>
+    public void CopyTo(Frame destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        PixelFormat source = PixelFormat;
+        PixelFormat target = destination.PixelFormat;
+        if (source.IsHardware || target.IsHardware)
+        {
+            if (source != PixelFormat.Vulkan || target != PixelFormat.Vulkan)
+            {
+                throw new NotSupportedException(
+                    $"Copying {source} to {target} is not supported: hardware frames copy between Vulkan "
+                        + $"surfaces of one device; {nameof(TransferTo)} moves pictures to and from system memory."
+                );
+            }
+
+            VulkanCopy.Copy(this, destination);
+        }
+        else
+        {
+            if (Width != destination.Width || Height != destination.Height || source != target)
+            {
+                throw new ArgumentException(
+                    $"The frames differ ({Width}x{Height} {source}, {destination.Width}x{destination.Height} {target}).",
+                    nameof(destination)
+                );
+            }
+
+            destination.MakeWritable();
+            FFmpegError.ThrowIfError(av_frame_copy(destination.NativePointer, NativePointer));
+        }
+
+        FFmpegError.ThrowIfError(av_frame_copy_props(destination.NativePointer, NativePointer));
+    }
+
+    /// <summary>
     /// Maps this hardware frame into another representation without copying, for example a VA-API
     /// surface to DRM PRIME descriptors, or a hardware surface into system memory.
     /// </summary>
