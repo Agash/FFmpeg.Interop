@@ -5,11 +5,15 @@
 # /Users/...), and the merge matches files by path, so the same file from two platforms would be counted
 # twice rather than combined. The paths are rewritten to repository-relative form first.
 #
-# Usage:  ./eng/merge-coverage.ps1 -Reports <cobertura files...> -Output merged.cobertura.xml
+# -Exclude drops the files matching any of its repository-relative wildcard patterns before the merge,
+# so a gate can measure only the code a set of machines is able to run.
+#
+# Usage:  ./eng/merge-coverage.ps1 -Reports <cobertura files...> -Output merged.cobertura.xml [-Exclude <patterns...>]
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string[]]$Reports,
-    [Parameter(Mandatory)] [string]$Output
+    [Parameter(Mandatory)] [string]$Output,
+    [string[]]$Exclude = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,6 +28,11 @@ try {
             $path = $node.GetAttribute('filename').Replace('\', '/')
             $match = [regex]::Match($path, '(?:^|/)((?:src|tests|samples)/.*)$')
             if ($match.Success) { $node.SetAttribute('filename', $match.Groups[1].Value) }
+        }
+
+        foreach ($class in @($xml.SelectNodes('//class'))) {
+            $file = $class.GetAttribute('filename')
+            if (@($Exclude | Where-Object { $file -like $_ }).Count -gt 0) { [void]$class.ParentNode.RemoveChild($class) }
         }
 
         foreach ($source in @($xml.SelectNodes('//sources/source'))) { $source.InnerText = '.' }

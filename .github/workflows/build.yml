@@ -38,7 +38,7 @@ jobs:
           # macOS runners are Apple-silicon VMs: VideoToolbox devices, surfaces and encoders work there, but
           # their paravirtualized decoder does not reproduce the hardware decoder bit for bit, so the
           # bit-exact decode comparisons run on the physical Mac only.
-          - { os: macos-26, rid: osx-arm64, filter: "TestCategory!=RequiresNvidia&TestCategory!=RequiresAmf&TestCategory!=RequiresVaapi&TestCategory!=RequiresVulkan&TestCategory!=RequiresHardwareDecoder", format: false }
+          - { os: macos-26, rid: osx-arm64, filter: "TestCategory!=RequiresNvidia&TestCategory!=RequiresAmf&TestCategory!=RequiresQsv&TestCategory!=RequiresVaapi&TestCategory!=RequiresVulkan&TestCategory!=RequiresHardwareDecoder", format: false }
 
     steps:
       - uses: actions/checkout@v7
@@ -109,9 +109,10 @@ jobs:
 
   coverage:
     name: Coverage (all legs merged)
-    # Every platform runs code the others cannot (D3D surfaces on Windows, VA-API and Vulkan on Linux,
-    # VideoToolbox on macOS), so the figure that means anything is the union. The GPU-only paths are
-    # covered by the hardware suites run on the machines that have the GPUs; see CONTRIBUTING.md.
+    # Every platform runs code the others cannot (VA-API and Vulkan on Linux, VideoToolbox on macOS), so
+    # the figure that means anything is the union. The Direct3D interop needs a hardware adapter no runner
+    # has, so it is left out of this gate and covered by the hardware suites run on the GPU machines; see
+    # CONTRIBUTING.md.
     needs: [test]
     if: always()
     runs-on: ubuntu-latest
@@ -133,21 +134,20 @@ jobs:
         shell: pwsh
         run: |
           $reports = @(Get-ChildItem coverage -Recurse -Filter '*.cobertura.xml' | ForEach-Object FullName)
-          $totals = ./eng/merge-coverage.ps1 -Reports $reports -Output merged.cobertura.xml
+          $gpuOnly = 'src/FFmpeg.Interop/Hardware/D3D11/*', 'src/FFmpeg.Interop/Hardware/D3D12/*'
+          $totals = ./eng/merge-coverage.ps1 -Reports $reports -Output merged.cobertura.xml -Exclude $gpuOnly
           @(
             '### Coverage, all CI legs merged'
             ''
-            'Hand-written code only; the generated bindings are excluded. GPU paths are covered by `eng/test-machine.ps1` on the GPU machines.'
+            'Hand-written code only; the generated bindings are excluded. The Direct3D interop needs a hardware adapter and is excluded too; `eng/test-machine.ps1` covers it on the GPU machines.'
             ''
             '| Metric | Covered | Total | Rate |'
             '| --- | ---: | ---: | ---: |'
             "| Lines | $($totals.LinesCovered) | $($totals.LinesValid) | $($totals.Lines.ToString('P1')) |"
             "| Branches | $($totals.BranchesCovered) | $($totals.BranchesValid) | $($totals.Branches.ToString('P1')) |"
           ) | Add-Content $env:GITHUB_STEP_SUMMARY
-          # CI's floor is what runners can reach: the GPU paths (D3D11/D3D12 interop, CUDA, AMF, VA-API, hardware
-          # decode) run only on the GPU machines, whose reports merged with these must reach 90% / 80%.
-          if ($totals.Lines -lt 0.84 -or $totals.Branches -lt 0.80) {
-            Write-Output "::error::Merged coverage $($totals.Lines.ToString('P1')) lines / $($totals.Branches.ToString('P1')) branches is below CI's 84% / 80% floor."
+          if ($totals.Lines -lt 0.90 -or $totals.Branches -lt 0.80) {
+            Write-Output "::error::Merged coverage $($totals.Lines.ToString('P1')) lines / $($totals.Branches.ToString('P1')) branches is below the 90% / 80% target."
             exit 1
           }
 
