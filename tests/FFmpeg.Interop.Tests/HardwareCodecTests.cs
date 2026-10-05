@@ -18,6 +18,12 @@ public enum EncoderInput
     /// Textures the application produced on the device, wrapped into the encoder's pool without a copy.
     /// </summary>
     WrappedD3D12Textures,
+
+    /// <summary>
+    /// DMA-BUFs another API produced on the GPU (VA-API here), imported into the encoder's pool without
+    /// a copy and handed over to it and back.
+    /// </summary>
+    ImportedDmaBufs,
 }
 
 /// <summary>
@@ -118,6 +124,30 @@ public sealed class HardwareCodecTests
     [DataRow("hevc")]
     public Task VideoToolboxDecode_IsBitExactWithSoftwareDecode(string clip) =>
         AssertDecodeMatchesSoftwareAsync(clip, GpuVendor.Apple, "videotoolbox", decoder: null);
+
+    // Linux's zero-copy encode: a DMA-BUF from another producer read by Vulkan Video in place.
+    [TestMethod]
+    [TestCategory("RequiresVaapi")]
+    [TestCategory("RequiresVulkan")]
+    [OSCondition(OperatingSystems.Linux)]
+    [DataRow("h264_vulkan")]
+    [DataRow("hevc_vulkan")]
+    public async Task VulkanEncode_FromImportedDmaBufs_ProducesAStreamFFmpegReadsBack(
+        string encoder
+    )
+    {
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.Vulkan,
+            Adapter(GpuVendor.Amd)
+        );
+        CodecId codec = Codec.FindEncoder(encoder).Id;
+        if (!device.CanVulkanEncode(codec))
+        {
+            Assert.Inconclusive($"The AMD GPU's driver has no Vulkan Video encode for {codec}.");
+        }
+
+        await AssertEncodeOnDeviceAsync(encoder, device, EncoderInput.ImportedDmaBufs);
+    }
 
     [TestMethod]
     [TestCategory("RequiresNvidia")]
@@ -1239,6 +1269,26 @@ public sealed class HardwareCodecTests
                 : null;
         List<Frame> produced = [];
 
+        // Stands in for another producer of DMA-BUFs on the GPU: VA-API surfaces, exported.
+        using HardwareDevice? vaapi =
+            input == EncoderInput.ImportedDmaBufs
+                ? HardwareDevice.Create(HardwareDeviceType.Vaapi, Adapter(GpuVendor.Amd))
+                : null;
+        using HardwareFramePool? dmaBufs = vaapi is null
+            ? null
+            : HardwareFramePool.Create(
+                vaapi,
+                PixelFormat.Vaapi,
+                PixelFormat.Nv12,
+                TestMedia.Width,
+                TestMedia.Height
+            );
+        using VulkanDmaBufImporter? importer =
+            dmaBufs is not null && pool is not null && OperatingSystem.IsLinux()
+                ? new VulkanDmaBufImporter(pool)
+                : null;
+        List<Frame> imported = [];
+
         using (MediaWriter writer = MediaWriter.Create(output))
         using (
             Encoder encoder = Encoder.Create(
@@ -1287,6 +1337,25 @@ public sealed class HardwareCodecTests
                     Assert.AreEqual(rendered.Resource, wrapped.Resource, "The texture was copied.");
                     fed = surface;
                 }
+                else if (importer is not null && dmaBufs is not null && OperatingSystem.IsLinux())
+                {
+                    Frame vaSurface = new();
+                    produced.Add(vaSurface);
+                    dmaBufs.Upload(frame, vaSurface);
+                    using Frame drm = new();
+                    drm.PixelFormat = PixelFormat.DrmPrime;
+                    vaSurface.MapTo(drm, HardwareMapAccess.Read);
+                    DrmPrimeImage image = HardwareTests.SingleLayer(drm);
+                    Assert.IsTrue(
+                        importer.Supports(image.Objects[0].Modifier),
+                        $"Modifier 0x{image.Objects[0].Modifier:x16} is not importable for encoding."
+                    );
+                    Frame vulkan = new();
+                    imported.Add(vulkan);
+                    importer.Import(image, TestMedia.Width, TestMedia.Height, vulkan);
+                    importer.Acquire(vulkan);
+                    fed = vulkan;
+                }
                 else if (pool is not null)
                 {
                     pool.Upload(frame, surface);
@@ -1306,6 +1375,17 @@ public sealed class HardwareCodecTests
             }
 
             writer.Complete();
+        }
+
+        // The encoder is drained: every imported picture goes back to its producer.
+        foreach (Frame vulkan in imported)
+        {
+            if (OperatingSystem.IsLinux())
+            {
+                importer!.Release(vulkan);
+            }
+
+            vulkan.Dispose();
         }
 
         foreach (Frame texture in produced)

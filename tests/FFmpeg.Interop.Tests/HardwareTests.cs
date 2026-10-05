@@ -182,6 +182,89 @@ public sealed class HardwareTests
         }
     }
 
+    // A DMA-BUF imported for a pool's use is the producer's picture, read in place: copying it out of the
+    // imported frame gives back what the producer wrote.
+    [TestMethod]
+    [TestCategory("RequiresVulkan")]
+    [OSCondition(OperatingSystems.Linux)]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    public void VulkanDmaBufImporter_ImportedPicture_IsTheProducersPicture()
+    {
+        using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.Vulkan);
+        RequireDmaBufSharing(device);
+        using HardwareFramePool producer = DmaBufProducer(device, 64, 48);
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using VulkanDmaBufImporter importer = new(pool);
+        (Frame source, byte[] pixels) = Uploaded(producer, seed: 29);
+        using (source)
+        {
+            using Frame drm = new();
+            drm.PixelFormat = PixelFormat.DrmPrime;
+            source.MapTo(drm, HardwareMapAccess.Read);
+            DrmPrimeImage image = SingleLayer(drm);
+            Assert.Contains(image.Objects[0].Modifier, importer.SupportedModifiers);
+            Assert.IsTrue(importer.Supports(image.Objects[0].Modifier));
+
+            using Frame imported = new();
+            importer.Import(image, 64, 48, imported);
+            Assert.IsTrue(imported.TryGetVulkanFrame(out VulkanFrame view));
+            Assert.AreEqual(1, view.ImageCount);
+            _ = Assert.ThrowsExactly<InvalidOperationException>(() => importer.Release(imported));
+
+            importer.Acquire(imported);
+            _ = Assert.ThrowsExactly<InvalidOperationException>(() => importer.Acquire(imported));
+            using Frame copy = new();
+            pool.GetFrame(copy);
+            imported.CopyTo(copy);
+            importer.Release(imported);
+
+            CollectionAssert.AreEqual(pixels, Downloaded(copy));
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("RequiresVulkan")]
+    [OSCondition(OperatingSystems.Linux)]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    public void VulkanDmaBufImporter_PictureOfSeveralObjectsOrAnUnknownModifier_IsRefused()
+    {
+        using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.Vulkan);
+        RequireDmaBufSharing(device);
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using VulkanDmaBufImporter importer = new(pool);
+        using Frame frame = new();
+        DrmLayer layer = new(Nv12Fourcc, [new DrmPlane(0, 0, 64), new DrmPlane(1, 0, 64)]);
+        DrmPrimeImage twoObjects = new(
+            [new DrmObject(0, 4096, 0), new DrmObject(1, 4096, 0)],
+            [layer]
+        );
+        DrmPrimeImage unknown = new(
+            [new DrmObject(0, 8192, 0x00ffffffffffffff)],
+            [new DrmLayer(Nv12Fourcc, [new DrmPlane(0, 0, 64), new DrmPlane(0, 4096, 64)])]
+        );
+
+        Assert.IsFalse(importer.Supports(0x00ffffffffffffff));
+        _ = Assert.ThrowsExactly<NotSupportedException>(() =>
+            importer.Import(twoObjects, 64, 48, frame)
+        );
+        _ = Assert.ThrowsExactly<NotSupportedException>(() =>
+            importer.Import(unknown, 64, 48, frame)
+        );
+        _ = Assert.ThrowsExactly<ArgumentException>(() => importer.Acquire(frame));
+    }
+
     [TestMethod]
     [TestCategory("RequiresVulkan")]
     public void VulkanFrames_CopyToAnotherSizeOrSystemMemory_Throws()

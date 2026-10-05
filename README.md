@@ -70,11 +70,17 @@ What a sender needs from an encoder is there without dropping to the native laye
   `Encoder.SetRateControl` mid-stream for congestion control, on the encoders FFmpeg reconfigures
   (NVENC, libx264; `SupportsRateControlChanges` says which, instead of changes being silently ignored).
 - **GPU inputs:** without a copy, `Frame.FromDrmPrime` imports DMA-BUFs (a PipeWire screencast, a V4L2
-  camera) for `Frame.MapTo(pool, ...)` into VA-API or Vulkan surfaces, `HardwareFramePool.WrapD3D12Texture`
+  camera) for `Frame.MapTo(pool, ...)` into VA-API surfaces, and `VulkanDmaBufImporter` imports them as
+  images a Vulkan Video encoder reads in place (FFmpeg's own Vulkan mapping cannot be encoder input), with
+  `Acquire` and `Release` handing each buffer between its producer and the encoder;
+  `SupportedModifiers` lists the layouts a producer can allocate to be read in place. `HardwareFramePool.WrapD3D12Texture`
   hands an application's D3D12 texture to a D3D12 encoder, ordered after the producer's queue on the
   GPU, and `HardwareFramePool.WrapCVPixelBuffer` and `WrapIOSurface` hand a pixel buffer or a bare IOSurface (a Syphon frame) to VideoToolbox.
   D3D11 encoders only take their own pool's surfaces, so `HardwareFramePool.CopyFromD3D11Texture` copies
-  a captured texture into one on the GPU.
+  a captured texture into one on the GPU. `Frame.CopyTo` copies a picture between two Vulkan frames of one
+  device on the GPU, or between system-memory frames.
+- **Defined pictures:** `Frame.AllocateVideo` leaves the picture undefined, as FFmpeg does; `FillBlack`
+  sets it to black at the frame's colour range.
 - **Capture devices:** `MediaReader.ListDevices("dshow")` lists a format's devices; `MediaReader.OpenDevice("v4l2", "/dev/video0")`
   opens one (`dshow`, `v4l2`, `avfoundation`, `lavfi`).
 - **Logging:** `FFmpegLogging.UseLoggerFactory(loggerFactory)` routes `av_log` to `ILogger`, one
