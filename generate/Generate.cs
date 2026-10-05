@@ -122,10 +122,12 @@ return failures == 0 ? 0 : 1;
 // A struct a header only forward-declares comes out as an empty partial struct, once for every pass
 // whose headers mention it. Those are opaque handles: one declaration is kept, the full definition
 // when some pass has it, and none of them gets a layout test, because an empty C# struct has size 1
-// and the C type has no size at all.
+// and the C type has no size at all. A pass's function class is a partial class each pass adds its
+// own functions to, so it is never a duplicate.
 void DeduplicateForwardDeclarations()
 {
     string[] passOrder = [.. passes.Select(static p => p.Name)];
+    HashSet<string> functionClasses = [.. passes.Select(static p => p.ClassName)];
     var declarations = Directory
         .EnumerateFiles(outputRoot, "*.g.cs", SearchOption.AllDirectories)
         .Select(f =>
@@ -135,7 +137,7 @@ void DeduplicateForwardDeclarations()
                 Type: Path.GetFileName(f)[..^".g.cs".Length]
             )
         )
-        .Where(static d => d.Pass != "helpers")
+        .Where(d => d.Pass != "helpers" && !functionClasses.Contains(d.Type))
         .GroupBy(static d => d.Type);
 
     int removed = 0;
