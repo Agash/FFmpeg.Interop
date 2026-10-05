@@ -1089,6 +1089,9 @@ public sealed class HardwareCodecTests
         return adapter;
     }
 
+    private static bool HasAdapter(GpuVendor vendor) =>
+        GpuAdapter.Enumerate().Any(a => a.Vendor == vendor && !a.IsSoftware);
+
     private static HardwareDeviceType DeviceType(string name) =>
         HardwareDeviceType.TryParse(name, out HardwareDeviceType type)
             ? type
@@ -1108,6 +1111,13 @@ public sealed class HardwareCodecTests
             PixelFormat.Yuv420P
         );
         Assert.HasCount(TestMedia.FrameCount, software);
+
+        // The Vulkan rows span vendors and run wherever a Vulkan loader is; the vendor-specific suites
+        // are picked by the GPU present, so their adapter is required.
+        if (deviceType == "vulkan" && !HasAdapter(vendor))
+        {
+            Assert.Inconclusive($"No {vendor} GPU on this machine.");
+        }
 
         using HardwareDevice device = HardwareDevice.Create(
             DeviceType(deviceType),
