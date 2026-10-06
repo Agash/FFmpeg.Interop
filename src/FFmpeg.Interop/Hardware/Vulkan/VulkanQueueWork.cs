@@ -155,9 +155,14 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
         }
     }
 
-    // Ends and submits a command buffer after the frames' pending work, signalling each image's next
-    // timeline value; returns the value of this object's timeline the work completes at.
-    public ulong Submit(void* commands, ReadOnlySpan<nint> frames)
+    // Ends and submits a command buffer after the frames' pending work and any other timeline points,
+    // signalling each image's next timeline value; returns the value of this object's timeline the work
+    // completes at.
+    public ulong Submit(
+        void* commands,
+        ReadOnlySpan<nint> frames,
+        ReadOnlySpan<(nint Semaphore, ulong Value)> after = default
+    )
     {
         VulkanFunctions.Check(_vk.EndCommandBuffer(commands), "vkEndCommandBuffer");
         int images = 0;
@@ -166,7 +171,8 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
             images += Images((AVVkFrame*)frame);
         }
 
-        int count = images + 1;
+        int waited = images + after.Length;
+        int count = waited + 1;
         void** semaphores = stackalloc void*[count];
         ulong* waits = stackalloc ulong[count];
         ulong* signals = stackalloc ulong[count];
@@ -184,30 +190,45 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
             }
         }
 
+        // The other points are waited on only; their entries in the signal list are skipped below.
+        foreach ((nint semaphore, ulong value) in after)
+        {
+            semaphores[n] = (void*)semaphore;
+            waits[n] = value;
+            stages[n] = (uint)VkPipelineStageFlagBits.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+            n++;
+        }
+
         ulong done = ++_submitted;
-        semaphores[n] = _done;
-        signals[n] = done;
+        void** signalled = stackalloc void*[images + 1];
+        for (int i = 0; i < images; i++)
+        {
+            signalled[i] = semaphores[i];
+        }
+
+        signalled[images] = _done;
+        signals[images] = done;
 
         // The work's own timeline is only signalled, so the wait list leaves it out.
         VkTimelineSemaphoreSubmitInfo timeline = new()
         {
             sType = VkStructureType.VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
-            waitSemaphoreValueCount = (uint)images,
+            waitSemaphoreValueCount = (uint)waited,
             pWaitSemaphoreValues = waits,
-            signalSemaphoreValueCount = (uint)count,
+            signalSemaphoreValueCount = (uint)(images + 1),
             pSignalSemaphoreValues = signals,
         };
         VkSubmitInfo submit = new()
         {
             sType = VkStructureType.VK_STRUCTURE_TYPE_SUBMIT_INFO,
             pNext = &timeline,
-            waitSemaphoreCount = (uint)images,
+            waitSemaphoreCount = (uint)waited,
             pWaitSemaphores = semaphores,
             pWaitDstStageMask = stages,
             commandBufferCount = 1,
             pCommandBuffers = &commands,
-            signalSemaphoreCount = (uint)count,
-            pSignalSemaphores = semaphores,
+            signalSemaphoreCount = (uint)(images + 1),
+            pSignalSemaphores = signalled,
         };
 
         // FFmpeg 9 still locks every queue around its own submissions, so this does too.
@@ -225,6 +246,20 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
 
         _pending.Enqueue((done, (nint)commands));
         return done;
+    }
+
+    // The value of this object's timeline the GPU has reached.
+    public ulong Completed
+    {
+        get
+        {
+            ulong value;
+            VulkanFunctions.Check(
+                _vk.GetSemaphoreCounterValue(_context->act_dev, _done, &value),
+                "vkGetSemaphoreCounterValue"
+            );
+            return value;
+        }
     }
 
     // Blocks until the work that completes at a value of this object's timeline has run.

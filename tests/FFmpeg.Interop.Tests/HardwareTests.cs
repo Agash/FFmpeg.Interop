@@ -240,6 +240,65 @@ public sealed class HardwareTests
         }
     }
 
+    // A producer that synchronises explicitly hands its picture over before the GPU has written it: the
+    // importer's GPU work waits for the producer's sync point, with no thread blocked on it.
+    [TestMethod]
+    [TestCategory("RequiresVulkan")]
+    [OSCondition(OperatingSystems.Linux)]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    public async Task VulkanDmaBufImporter_Acquire_WaitsOnTheGpuForTheProducersSyncPoint()
+    {
+        using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.Vulkan);
+        RequireDmaBufSharing(device);
+        using HardwareFramePool producer = DmaBufProducer(device, 64, 48);
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Nv12,
+            64,
+            48,
+            configure: static pool =>
+            {
+                unsafe
+                {
+                    ((AVVulkanFramesContext*)pool.Context->hwctx)->usage =
+                        VkImageUsageFlagBits.VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                        | VkImageUsageFlagBits.VK_IMAGE_USAGE_TRANSFER_DST_BIT
+                        | VkImageUsageFlagBits.VK_IMAGE_USAGE_SAMPLED_BIT;
+                }
+            }
+        );
+        using VulkanDmaBufImporter importer = new(pool);
+        Assert.IsTrue(importer.WaitsForSyncPoints);
+        using DrmTimeline timeline = new();
+        (Frame source, byte[] pixels) = Uploaded(producer, seed: 31);
+        using (source)
+        {
+            using Frame drm = new();
+            drm.PixelFormat = PixelFormat.DrmPrime;
+            source.MapTo(drm, HardwareMapAccess.Read);
+            using Frame imported = new();
+            importer.Import(SingleLayer(drm), 64, 48, imported);
+
+            // Acquiring queues the wait and returns; giving the frame back waits for that hand-over.
+            importer.Acquire(imported, new DrmSyncPoint(timeline.Fd, 1));
+            Task released = Task.Run(() => importer.Release(imported));
+            await Assert.ThrowsExactlyAsync<TimeoutException>(() =>
+                released.WaitAsync(TimeSpan.FromMilliseconds(300), TestContext.CancellationToken)
+            );
+
+            timeline.Signal(1);
+            await released.WaitAsync(TimeSpan.FromSeconds(10), TestContext.CancellationToken);
+
+            importer.Acquire(imported, new DrmSyncPoint(timeline.Fd, 1));
+            using Frame copy = new();
+            pool.GetFrame(copy);
+            imported.CopyTo(copy);
+            importer.Release(imported);
+            CollectionAssert.AreEqual(pixels, Downloaded(copy));
+        }
+    }
+
     [TestMethod]
     [TestCategory("RequiresVulkan")]
     [OSCondition(OperatingSystems.Linux)]

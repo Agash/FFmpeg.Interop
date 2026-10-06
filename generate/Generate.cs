@@ -1062,6 +1062,9 @@ static class Passes
                 "VkDrmFormatModifierPropertiesEXT",
                 "VkFormatFeatureFlagBits",
                 "VkImageDrmFormatModifierListCreateInfoEXT",
+                "VkImportSemaphoreFdInfoKHR",
+                "VkSemaphoreImportFlagBits",
+                "VkExternalSemaphoreHandleTypeFlagBits",
             ],
         };
 

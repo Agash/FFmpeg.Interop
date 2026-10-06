@@ -73,6 +73,12 @@ internal readonly unsafe struct VulkanFunctions
         void**,
         VkResult> CreateSemaphore;
     public readonly delegate* unmanaged[Stdcall]<void*, void*, void*, void> DestroySemaphore;
+
+    // Null when the device was made without VK_KHR_external_semaphore_fd.
+    public readonly delegate* unmanaged[Stdcall]<
+        void*,
+        VkImportSemaphoreFdInfoKHR*,
+        VkResult> ImportSemaphoreFd;
     public readonly delegate* unmanaged[Stdcall]<
         void*,
         VkImageCreateInfo*,
@@ -198,6 +204,10 @@ internal readonly unsafe struct VulkanFunctions
         DestroySemaphore = (delegate* unmanaged[Stdcall]<void*, void*, void*, void>)Device(
             "vkDestroySemaphore"
         );
+        ImportSemaphoreFd = (delegate* unmanaged[Stdcall]<
+            void*,
+            VkImportSemaphoreFdInfoKHR*,
+            VkResult>)Optional(getDeviceProcAddr, context->act_dev, "vkImportSemaphoreFdKHR");
         CreateImage = (delegate* unmanaged[Stdcall]<
             void*,
             VkImageCreateInfo*,

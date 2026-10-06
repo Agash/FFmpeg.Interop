@@ -56,6 +56,7 @@ public sealed unsafe partial class VulkanDmaBufImporter : IDisposable
     private readonly AVHWFramesContext* _frames;
     private readonly AVVulkanDeviceContext* _context;
     private readonly VulkanQueueWork _work;
+    private readonly Queue<(ulong Done, nint Semaphore)> _waited = new();
     private readonly VkFormat _format;
     private readonly uint _usage;
     private readonly uint _flags;
@@ -224,7 +225,19 @@ public sealed unsafe partial class VulkanDmaBufImporter : IDisposable
     /// them. The hand-over is queued on the GPU ahead of the frame's next use; it does not block.
     /// </summary>
     /// <param name="frame">A frame from <see cref="Import"/>, held by its producer.</param>
-    public void Acquire(Frame frame) => HandOver(frame, acquire: true);
+    /// <param name="ready">
+    /// The point the producer signals once the picture is written, for a producer that synchronises
+    /// explicitly: the GPU waits for it before the frame's next use. Null when the picture is finished.
+    /// </param>
+    /// <exception cref="NotSupportedException">
+    /// A sync point was given and the device was made without VK_KHR_external_semaphore_fd
+    /// (<see cref="WaitsForSyncPoints"/>).
+    /// </exception>
+    public void Acquire(Frame frame, DrmSyncPoint? ready = null) =>
+        HandOver(frame, acquire: true, ready);
+
+    /// <summary>Whether <see cref="Acquire"/> can wait for a producer's sync point on the GPU.</summary>
+    public bool WaitsForSyncPoints => _work.Functions.ImportSemaphoreFd is not null;
 
     /// <summary>
     /// Gives an imported frame's images back to their producer once the work already queued on them is
@@ -232,7 +245,7 @@ public sealed unsafe partial class VulkanDmaBufImporter : IDisposable
     /// so the producer may reuse the buffer straight after.
     /// </summary>
     /// <param name="frame">A frame from <see cref="Import"/>, acquired.</param>
-    public void Release(Frame frame) => HandOver(frame, acquire: false);
+    public void Release(Frame frame) => HandOver(frame, acquire: false, null);
 
     /// <inheritdoc/>
     public void Dispose()
@@ -246,11 +259,12 @@ public sealed unsafe partial class VulkanDmaBufImporter : IDisposable
 
             _disposed = true;
             _work.Dispose();
+            DestroyWaited(ulong.MaxValue);
             _pool.Dispose();
         }
     }
 
-    private void HandOver(Frame frame, bool acquire)
+    private void HandOver(Frame frame, bool acquire, DrmSyncPoint? ready)
     {
         ArgumentNullException.ThrowIfNull(frame);
         AVFrame* native = frame.NativePointer;
@@ -272,6 +286,9 @@ public sealed unsafe partial class VulkanDmaBufImporter : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            DestroyWaited(_work.Completed);
+            void* waited = ready is { } point ? ImportSyncPoint(point) : null;
             ulong done;
             frames->lock_frame(_frames, vkf);
             try
@@ -310,7 +327,9 @@ public sealed unsafe partial class VulkanDmaBufImporter : IDisposable
                     VkPipelineStageFlagBits.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                     VkPipelineStageFlagBits.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT
                 );
-                done = _work.Submit(commands, [(nint)vkf]);
+                done = waited is null
+                    ? _work.Submit(commands, [(nint)vkf])
+                    : _work.Submit(commands, [(nint)vkf], [((nint)waited, ready!.Value.Value)]);
 
                 // Acquired images are shared by every queue family of the device; FFmpeg's own barriers
                 // then need no further transfer.
@@ -318,15 +337,87 @@ public sealed unsafe partial class VulkanDmaBufImporter : IDisposable
                 vkf->access[0] = 0;
                 vkf->queue_family[0] = acquire ? VulkanCopy.QueueFamilyIgnored : _otherUser;
             }
+            catch
+            {
+                if (waited is not null)
+                {
+                    _work.Functions.DestroySemaphore(_context->act_dev, waited, _context->alloc);
+                    waited = null;
+                }
+
+                throw;
+            }
             finally
             {
                 frames->unlock_frame(_frames, vkf);
+            }
+
+            if (waited is not null)
+            {
+                _waited.Enqueue((done, (nint)waited));
             }
 
             if (!acquire)
             {
                 _work.Wait(done);
             }
+        }
+    }
+
+    // A producer's sync point as a timeline semaphore of this device, waited on by one hand-over.
+    private void* ImportSyncPoint(DrmSyncPoint point)
+    {
+        VulkanFunctions vk = _work.Functions;
+        if (vk.ImportSemaphoreFd is null)
+        {
+            throw new NotSupportedException(
+                "The Vulkan device was made without VK_KHR_external_semaphore_fd, so a sync point cannot be waited on the GPU."
+            );
+        }
+
+        void* device = _context->act_dev;
+        void* semaphore = VulkanQueueWork.Timeline(vk, _context);
+
+        // The import takes the descriptor; the caller keeps its own.
+        int fd = dup(point.Syncobj);
+        if (fd < 0)
+        {
+            vk.DestroySemaphore(device, semaphore, _context->alloc);
+            throw new InvalidOperationException(
+                $"Duplicating syncobj {point.Syncobj} failed (errno {Marshal.GetLastPInvokeError()})."
+            );
+        }
+
+        VkImportSemaphoreFdInfoKHR import = new()
+        {
+            sType = VkStructureType.VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
+            semaphore = semaphore,
+            handleType =
+                VkExternalSemaphoreHandleTypeFlagBits.VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT,
+            fd = fd,
+        };
+        VkResult result = vk.ImportSemaphoreFd(device, &import);
+        if (result != VkResult.VK_SUCCESS)
+        {
+            _ = close(fd);
+            vk.DestroySemaphore(device, semaphore, _context->alloc);
+            VulkanFunctions.Check(result, "vkImportSemaphoreFdKHR");
+        }
+
+        return semaphore;
+    }
+
+    // Destroys the semaphores of sync points whose hand-overs have run.
+    private void DestroyWaited(ulong completed)
+    {
+        while (_waited.TryPeek(out (ulong Done, nint Semaphore) oldest) && oldest.Done <= completed)
+        {
+            _ = _waited.Dequeue();
+            _work.Functions.DestroySemaphore(
+                _context->act_dev,
+                (void*)oldest.Semaphore,
+                _context->alloc
+            );
         }
     }
 
