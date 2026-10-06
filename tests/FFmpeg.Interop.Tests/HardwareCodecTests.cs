@@ -20,6 +20,12 @@ public enum EncoderInput
     WrappedD3D12Textures,
 
     /// <summary>
+    /// Textures the application produced on the device, wrapped into an NVENC or AMF encoder's D3D11 pool
+    /// without a copy.
+    /// </summary>
+    WrappedD3D11Textures,
+
+    /// <summary>
     /// DMA-BUFs another API produced on the GPU (VA-API here), imported into the encoder's pool without
     /// a copy and handed over to it and back.
     /// </summary>
@@ -177,6 +183,8 @@ public sealed class HardwareCodecTests
     [DataRow("hevc_nvenc", "cuda", EncoderInput.Surfaces)]
     [DataRow("h264_nvenc", "d3d11va", EncoderInput.Surfaces)]
     [DataRow("hevc_nvenc", "d3d11va", EncoderInput.Surfaces)]
+    [DataRow("h264_nvenc", "d3d11va", EncoderInput.WrappedD3D11Textures)]
+    [DataRow("hevc_nvenc", "d3d11va", EncoderInput.WrappedD3D11Textures)]
     public Task NvidiaEncode_ProducesAStreamFFmpegReadsBack(
         string encoder,
         string deviceType,
@@ -230,6 +238,8 @@ public sealed class HardwareCodecTests
     [DataRow("hevc_amf", "amf", EncoderInput.SystemMemory)]
     [DataRow("h264_amf", "d3d11va", EncoderInput.Surfaces)]
     [DataRow("hevc_amf", "d3d11va", EncoderInput.Surfaces)]
+    [DataRow("h264_amf", "d3d11va", EncoderInput.WrappedD3D11Textures)]
+    [DataRow("hevc_amf", "d3d11va", EncoderInput.WrappedD3D11Textures)]
     public Task AmfEncode_ProducesAStreamFFmpegReadsBack(
         string encoder,
         string deviceType,
@@ -493,6 +503,65 @@ public sealed class HardwareCodecTests
         using HardwareDevice device = HardwareDevice.FromD3D12Device(application.Device);
 
         await AssertEncodeOnDeviceAsync(encoder, device, EncoderInput.WrappedD3D12Textures);
+    }
+
+    [TestMethod]
+    [TestCategory("RequiresGpu")]
+    [OSCondition(OperatingSystems.Windows)]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows6.1")]
+    public void WrapD3D11Texture_HoldsTheTextureWhileTheFrameDoes()
+    {
+        using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.D3D11VA);
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D11,
+            PixelFormat.Nv12,
+            64,
+            48,
+            initialSize: 2,
+            configure: HardwareTests.UseAsDecoderTarget
+        );
+        using HardwareFramePool textures = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D11,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using HardwareFramePool larger = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D11,
+            PixelFormat.Nv12,
+            128,
+            96
+        );
+        using Frame application = new();
+        textures.GetFrame(application);
+        Assert.IsTrue(application.TryGetD3D11Texture(out D3D11Texture texture));
+        using Frame big = new();
+        larger.GetFrame(big);
+        Assert.IsTrue(big.TryGetD3D11Texture(out D3D11Texture bigTexture));
+        uint before = References(texture.Texture);
+
+        Frame wrapped = new();
+        pool.WrapD3D11Texture(texture.Texture, texture.ArraySlice, wrapped);
+
+        Assert.IsTrue(wrapped.TryGetD3D11Texture(out D3D11Texture inPool));
+        Assert.AreEqual(texture.Texture, inPool.Texture);
+        Assert.IsGreaterThan(before, References(texture.Texture));
+        wrapped.Dispose();
+        Assert.AreEqual(before, References(texture.Texture));
+
+        using Frame refused = new();
+        _ = Assert.ThrowsExactly<ArgumentException>(() =>
+            pool.WrapD3D11Texture(bigTexture.Texture, 0, refused)
+        );
+
+        static uint References(nint unknown)
+        {
+            _ = Dxgi.AddRef(unknown);
+            return Dxgi.Release(unknown);
+        }
     }
 
     // The frame's fence is signalled on the producer's queue behind the work already submitted to it,
@@ -1360,16 +1429,36 @@ public sealed class HardwareCodecTests
 
         // Stands in for the application's renderer: its own textures on the encoder's device. Each
         // stays alive, unwritten, until the encoder is done with it.
-        using HardwareFramePool? producer =
-            input == EncoderInput.WrappedD3D12Textures
-                ? HardwareFramePool.Create(
-                    device,
-                    PixelFormat.D3D12,
-                    PixelFormat.Nv12,
-                    TestMedia.Width,
-                    TestMedia.Height
-                )
-                : null;
+        using HardwareFramePool? producer = input switch
+        {
+            EncoderInput.WrappedD3D12Textures => HardwareFramePool.Create(
+                device,
+                PixelFormat.D3D12,
+                PixelFormat.Nv12,
+                TestMedia.Width,
+                TestMedia.Height
+            ),
+            EncoderInput.WrappedD3D11Textures => HardwareFramePool.Create(
+                device,
+                PixelFormat.D3D11,
+                PixelFormat.Nv12,
+                TestMedia.Width,
+                TestMedia.Height,
+                configure: static pool =>
+                {
+                    // An application's textures: single textures it samples and renders to, not the
+                    // encoder's pool.
+                    const uint ShaderResource = 0x8;
+                    const uint RenderTarget = 0x20;
+                    unsafe
+                    {
+                        ((Native.AVD3D11VAFramesContext*)pool.Context->hwctx)->BindFlags =
+                            ShaderResource | RenderTarget;
+                    }
+                }
+            ),
+            _ => null,
+        };
         List<Frame> produced = [];
 
         // Stands in for another producer of DMA-BUFs on the GPU: VA-API surfaces, exported.
@@ -1426,6 +1515,22 @@ public sealed class HardwareCodecTests
                 );
                 Frame fed = frame;
                 if (
+                    input == EncoderInput.WrappedD3D11Textures
+                    && producer is not null
+                    && pool is not null
+                    && OperatingSystem.IsWindowsVersionAtLeast(6, 1)
+                )
+                {
+                    Frame texture = new();
+                    produced.Add(texture);
+                    producer.Upload(frame, texture);
+                    Assert.IsTrue(texture.TryGetD3D11Texture(out D3D11Texture rendered));
+                    pool.WrapD3D11Texture(rendered.Texture, rendered.ArraySlice, surface);
+                    Assert.IsTrue(surface.TryGetD3D11Texture(out D3D11Texture wrapped));
+                    Assert.AreEqual(rendered.Texture, wrapped.Texture, "The texture was copied.");
+                    fed = surface;
+                }
+                else if (
                     producer is not null
                     && pool is not null
                     && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 10240)

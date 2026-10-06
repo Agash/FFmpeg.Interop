@@ -82,6 +82,64 @@ public static unsafe class D3D11VAExtensions
     extension(HardwareFramePool pool)
     {
         /// <summary>
+        /// Makes an application's Direct3D 11 texture a frame of this pool without a copy, for the encoders
+        /// that read any texture on their device (NVENC and AMF register what they are given). The frame
+        /// holds a reference to the texture until the encoder has let go of it.
+        /// </summary>
+        /// <param name="texture">
+        /// The <c>ID3D11Texture2D*</c>: on this pool's device, in the pool's DXGI format, and exactly the
+        /// pool's size, since an encoder reads the whole texture. A larger one is copied with
+        /// <see cref="CopyFromD3D11Texture"/>.
+        /// </param>
+        /// <param name="subresource">The array slice the picture is in; zero for a single texture.</param>
+        /// <param name="destination">
+        /// The frame to receive the texture; its previous content is released. The texture must not be
+        /// written again until the encoder has emitted the frame's packet.
+        /// </param>
+        public void WrapD3D11Texture(nint texture, int subresource, Frame destination)
+        {
+            D3D11_TEXTURE2D_DESC source = CheckD3D11Texture(
+                pool,
+                texture,
+                subresource,
+                destination
+            );
+            if (source.Width != (uint)pool.Width || source.Height != (uint)pool.Height)
+            {
+                throw new ArgumentException(
+                    $"The texture is {source.Width}x{source.Height}; a wrapped texture is exactly the pool's {pool.Width}x{pool.Height}.",
+                    nameof(texture)
+                );
+            }
+
+            if (DxgiFormat(pool.SoftwareFormat) is not { } expected || source.Format != expected)
+            {
+                throw new ArgumentException(
+                    $"The texture is in DXGI format {source.Format}; the pool holds {pool.SoftwareFormat}.",
+                    nameof(texture)
+                );
+            }
+
+            _ = Dxgi.AddRef(texture);
+            AVBufferRef* buffer = LibAVUtil.av_buffer_create(
+                (byte*)texture,
+                0,
+                D3D11.TextureRelease,
+                null,
+                0
+            );
+            if (buffer is null)
+            {
+                _ = Dxgi.Release(texture);
+                FFmpegError.ThrowOutOfMemory("av_buffer_create");
+            }
+
+            // data[0] is the texture, data[1] the array slice, as FFmpeg's own D3D11 surfaces are.
+            pool.Adopt(destination, buffer, 0, (void*)texture);
+            destination.NativePointer->data[1] = (byte*)(nint)subresource;
+        }
+
+        /// <summary>
         /// Copies a Direct3D 11 texture into a surface from this pool on the GPU, the zero-readback way to
         /// hand an encoder a texture the application rendered or captured (a Windows Graphics Capture
         /// frame): encoders only take surfaces from their own pool.
@@ -95,30 +153,9 @@ public static unsafe class D3D11VAExtensions
         /// <param name="destination">The frame to receive the surface; its previous content is released.</param>
         public void CopyFromD3D11Texture(nint texture, int subresource, Frame destination)
         {
-            if (texture == 0)
-            {
-                throw new ArgumentNullException(nameof(texture));
-            }
-
-            ArgumentOutOfRangeException.ThrowIfNegative(subresource);
-            ArgumentNullException.ThrowIfNull(destination);
-            if (pool.Format != PixelFormat.D3D11)
-            {
-                throw new InvalidOperationException(
-                    $"The pool holds {pool.Format} surfaces; a D3D11 texture needs a D3D11 pool."
-                );
-            }
-
+            _ = CheckD3D11Texture(pool, texture, subresource, destination);
             AVD3D11VADeviceContext* device = (AVD3D11VADeviceContext*)
                 pool.Context->device_ctx->hwctx;
-            if (D3D11.GetDevice(texture) != (nint)device->device)
-            {
-                throw new ArgumentException(
-                    "The texture belongs to another D3D11 device; open the pool's device from the application's device.",
-                    nameof(texture)
-                );
-            }
-
             pool.GetFrame(destination);
             if (!destination.TryGetD3D11Texture(out D3D11Texture surface))
             {
@@ -160,6 +197,51 @@ public static unsafe class D3D11VAExtensions
             }
         }
     }
+
+    // What a texture handed to a pool is checked for: a texture on the pool's device, for a D3D11 pool.
+    private static D3D11_TEXTURE2D_DESC CheckD3D11Texture(
+        HardwareFramePool pool,
+        nint texture,
+        int subresource,
+        Frame destination
+    )
+    {
+        if (texture == 0)
+        {
+            throw new ArgumentNullException(nameof(texture));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(subresource);
+        ArgumentNullException.ThrowIfNull(destination);
+        if (pool.Format != PixelFormat.D3D11)
+        {
+            throw new InvalidOperationException(
+                $"The pool holds {pool.Format} surfaces; a D3D11 texture needs a D3D11 pool."
+            );
+        }
+
+        AVD3D11VADeviceContext* device = (AVD3D11VADeviceContext*)pool.Context->device_ctx->hwctx;
+        if (D3D11.GetDevice(texture) != (nint)device->device)
+        {
+            throw new ArgumentException(
+                "The texture belongs to another D3D11 device; open the pool's device from the application's device.",
+                nameof(texture)
+            );
+        }
+
+        return D3D11.GetDescription(texture);
+    }
+
+    // The DXGI format FFmpeg's D3D11 pools allocate a software format in.
+    private static Windows.Win32.Graphics.Dxgi.Common.DXGI_FORMAT? DxgiFormat(PixelFormat format) =>
+        format == PixelFormat.Nv12 ? Windows.Win32.Graphics.Dxgi.Common.DXGI_FORMAT.DXGI_FORMAT_NV12
+        : format == PixelFormat.P010
+            ? Windows.Win32.Graphics.Dxgi.Common.DXGI_FORMAT.DXGI_FORMAT_P010
+        : format == PixelFormat.Bgra
+            ? Windows.Win32.Graphics.Dxgi.Common.DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM
+        : format == PixelFormat.Rgba
+            ? Windows.Win32.Graphics.Dxgi.Common.DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM
+        : null;
 
     extension(Frame frame)
     {

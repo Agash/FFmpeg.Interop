@@ -76,8 +76,8 @@ What a sender needs from an encoder is there without dropping to the native laye
   `SupportedModifiers` lists the layouts a producer can allocate to be read in place. `HardwareFramePool.WrapD3D12Texture`
   hands an application's D3D12 texture to a D3D12 encoder, ordered after the producer's queue on the
   GPU, and `HardwareFramePool.WrapCVPixelBuffer` and `WrapIOSurface` hand a pixel buffer or a bare IOSurface (a Syphon frame) to VideoToolbox.
-  D3D11 encoders only take their own pool's surfaces, so `HardwareFramePool.CopyFromD3D11Texture` copies
-  a captured texture into one on the GPU. `Frame.CopyTo` copies a picture between two Vulkan frames of one
+  `HardwareFramePool.WrapD3D11Texture` hands an application's D3D11 texture to NVENC or AMF as it is;
+  `CopyFromD3D11Texture` copies one that is larger than the picture or in another format on the GPU. `Frame.CopyTo` copies a picture between two Vulkan frames of one
   device on the GPU, or between system-memory frames.
 - **GPU outputs:** `DecoderOptions.DrmModifiers` makes a Vulkan decoder decode into images with those
   DRM format modifiers on exportable memory, so `Frame.MapTo` to `PixelFormat.DrmPrime` shares each

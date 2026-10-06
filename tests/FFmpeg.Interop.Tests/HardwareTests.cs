@@ -448,7 +448,7 @@ public sealed class HardwareTests
 
     // A D3D11 texture array with no bind flags cannot be created for NV12; decoder output is the use
     // FFmpeg's own D3D11 pools are made for.
-    private static unsafe void UseAsDecoderTarget(HardwareFramePool pool)
+    internal static unsafe void UseAsDecoderTarget(HardwareFramePool pool)
     {
         const uint D3D11BindDecoder = 0x200;
         ((Native.AVD3D11VAFramesContext*)pool.Context->hwctx)->BindFlags = D3D11BindDecoder;
