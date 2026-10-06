@@ -177,15 +177,52 @@ public sealed class HardwareCodecTests
     [DataRow("hevc_nvenc", "cuda", EncoderInput.Surfaces)]
     [DataRow("h264_nvenc", "d3d11va", EncoderInput.Surfaces)]
     [DataRow("hevc_nvenc", "d3d11va", EncoderInput.Surfaces)]
-    [DataRow("h264_d3d12va", "d3d12va", EncoderInput.Surfaces)]
-    [DataRow("hevc_d3d12va", "d3d12va", EncoderInput.Surfaces)]
-    [DataRow("h264_vulkan", "vulkan", EncoderInput.Surfaces)]
-    [DataRow("hevc_vulkan", "vulkan", EncoderInput.Surfaces)]
     public Task NvidiaEncode_ProducesAStreamFFmpegReadsBack(
         string encoder,
         string deviceType,
         EncoderInput input
     ) => AssertEncodeAsync(encoder, GpuVendor.Nvidia, deviceType, input);
+
+    // Direct3D 12 Video encodes through every vendor's driver: Windows' own path to each GPU's encoder.
+    [TestMethod]
+    [TestCategory("RequiresGpu")]
+    [OSCondition(OperatingSystems.Windows)]
+    [DataRow("h264_d3d12va", GpuVendor.Nvidia)]
+    [DataRow("hevc_d3d12va", GpuVendor.Nvidia)]
+    [DataRow("h264_d3d12va", GpuVendor.Amd)]
+    [DataRow("hevc_d3d12va", GpuVendor.Amd)]
+    [DataRow("h264_d3d12va", GpuVendor.Intel)]
+    [DataRow("hevc_d3d12va", GpuVendor.Intel)]
+    public Task D3D12Encode_ProducesAStreamFFmpegReadsBack(string encoder, GpuVendor vendor)
+    {
+        RequireAdapter(vendor);
+        return AssertEncodeAsync(encoder, vendor, "d3d12va", EncoderInput.Surfaces);
+    }
+
+    // Vulkan Video, where the vendor's driver has it.
+    [TestMethod]
+    [TestCategory("RequiresVulkan")]
+    [DataRow("h264_vulkan", GpuVendor.Nvidia)]
+    [DataRow("hevc_vulkan", GpuVendor.Nvidia)]
+    [DataRow("h264_vulkan", GpuVendor.Amd)]
+    [DataRow("hevc_vulkan", GpuVendor.Amd)]
+    public async Task VulkanEncode_ProducesAStreamFFmpegReadsBack(string encoder, GpuVendor vendor)
+    {
+        RequireAdapter(vendor);
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.Vulkan,
+            Adapter(vendor)
+        );
+        CodecId codec = Codec.FindEncoder(encoder).Id;
+        if (!device.CanVulkanEncode(codec))
+        {
+            Assert.Inconclusive(
+                $"The {vendor} GPU's driver has no Vulkan Video encode for {codec}."
+            );
+        }
+
+        await AssertEncodeOnDeviceAsync(encoder, device, EncoderInput.Surfaces);
+    }
 
     [TestMethod]
     [TestCategory("RequiresAmf")]
@@ -435,15 +472,22 @@ public sealed class HardwareCodecTests
     }
 
     [TestMethod]
-    [TestCategory("RequiresNvidia")]
+    [TestCategory("RequiresGpu")]
+    [OSCondition(OperatingSystems.Windows)]
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
-    [DataRow("h264_d3d12va")]
-    [DataRow("hevc_d3d12va")]
-    public async Task WrapD3D12Texture_EncodesApplicationTexturesWithoutACopy(string encoder)
+    [DataRow("h264_d3d12va", GpuVendor.Nvidia)]
+    [DataRow("hevc_d3d12va", GpuVendor.Nvidia)]
+    [DataRow("h264_d3d12va", GpuVendor.Amd)]
+    [DataRow("hevc_d3d12va", GpuVendor.Amd)]
+    public async Task WrapD3D12Texture_EncodesApplicationTexturesWithoutACopy(
+        string encoder,
+        GpuVendor vendor
+    )
     {
+        RequireAdapter(vendor);
         using HardwareDevice opened = HardwareDevice.Create(
             HardwareDeviceType.D3D12VA,
-            Adapter(GpuVendor.Nvidia)
+            Adapter(vendor)
         );
         Assert.IsTrue(opened.TryGetD3D12(out D3D12Device application));
         using HardwareDevice device = HardwareDevice.FromD3D12Device(application.Device);
@@ -1139,8 +1183,15 @@ public sealed class HardwareCodecTests
         return adapter;
     }
 
-    private static bool HasAdapter(GpuVendor vendor) =>
-        GpuAdapter.Enumerate().Any(a => a.Vendor == vendor && !a.IsSoftware);
+    // Rows that span vendors run wherever their API is; the vendor-specific suites are picked by the GPU
+    // present, so a row for another vendor's GPU has nothing to run on.
+    private static void RequireAdapter(GpuVendor vendor)
+    {
+        if (!GpuAdapter.Enumerate().Any(a => a.Vendor == vendor && !a.IsSoftware))
+        {
+            Assert.Inconclusive($"No {vendor} GPU on this machine.");
+        }
+    }
 
     private static HardwareDeviceType DeviceType(string name) =>
         HardwareDeviceType.TryParse(name, out HardwareDeviceType type)
@@ -1163,11 +1214,9 @@ public sealed class HardwareCodecTests
         );
         Assert.HasCount(TestMedia.FrameCount, software);
 
-        // The Vulkan rows span vendors and run wherever a Vulkan loader is; the vendor-specific suites
-        // are picked by the GPU present, so their adapter is required.
-        if (deviceType == "vulkan" && !HasAdapter(vendor))
+        if (deviceType == "vulkan")
         {
-            Assert.Inconclusive($"No {vendor} GPU on this machine.");
+            RequireAdapter(vendor);
         }
 
         using HardwareDevice device = HardwareDevice.Create(
