@@ -35,9 +35,9 @@ Coverage is measured on the hand-written code; the generated bindings are exclud
 of lines and 80% of branches over everything that runs: CI's legs merged with the GPU machines'
 reports from `./eng/test-machine.ps1`, combined by `./eng/merge-coverage.ps1` (which normalises each
 machine's source paths, so the platforms combine instead of being counted side by side). CI holds its
-own merged legs to the same target over the code a runner can reach, which leaves out the Direct3D 11
-and 12 interop (`-Exclude` on the merge); a change to a GPU path comes with a `test-machine.ps1` run on
-the hardware it touches.
+own merged legs to the same target over the code a runner can reach, which leaves out the Direct3D 11,
+Direct3D 12 and Vulkan interop (`-Exclude` on the merge); a change to a GPU path comes with a
+`test-machine.ps1` run on the hardware it touches.
 
 `TestCategory("RequiresHardwareDecoder")` marks the bit-exact hardware decode comparisons. Every GPU
 machine runs them; CI's macOS runner does not, because its virtualized VideoToolbox decoder does not

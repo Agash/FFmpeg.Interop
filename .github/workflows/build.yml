@@ -109,10 +109,10 @@ jobs:
 
   coverage:
     name: Coverage (all legs merged)
-    # Every platform runs code the others cannot (VA-API and Vulkan on Linux, VideoToolbox on macOS), so
-    # the figure that means anything is the union. The Direct3D interop needs a hardware adapter no runner
-    # has, so it is left out of this gate and covered by the hardware suites run on the GPU machines; see
-    # CONTRIBUTING.md.
+    # Every platform runs code the others cannot (VA-API on Linux, VideoToolbox on macOS), so the figure
+    # that means anything is the union. The Direct3D and Vulkan interop (DMA-BUF import and export, sync
+    # points, GPU copies) need a hardware GPU no runner has, so they are left out of this gate and covered
+    # by the hardware suites run on the GPU machines; see CONTRIBUTING.md.
     needs: [test]
     if: always()
     runs-on: ubuntu-latest
@@ -134,12 +134,12 @@ jobs:
         shell: pwsh
         run: |
           $reports = @(Get-ChildItem coverage -Recurse -Filter '*.cobertura.xml' | ForEach-Object FullName)
-          $gpuOnly = 'src/FFmpeg.Interop/Hardware/D3D11/*', 'src/FFmpeg.Interop/Hardware/D3D12/*'
+          $gpuOnly = 'src/FFmpeg.Interop/Hardware/D3D11/*', 'src/FFmpeg.Interop/Hardware/D3D12/*', 'src/FFmpeg.Interop/Hardware/Vulkan/*'
           $totals = ./eng/merge-coverage.ps1 -Reports $reports -Output merged.cobertura.xml -Exclude $gpuOnly
           @(
             '### Coverage, all CI legs merged'
             ''
-            'Hand-written code only; the generated bindings are excluded. The Direct3D interop needs a hardware adapter and is excluded too; `eng/test-machine.ps1` covers it on the GPU machines.'
+            'Hand-written code only; the generated bindings are excluded. The Direct3D and Vulkan interop need a hardware GPU and are excluded too; `eng/test-machine.ps1` covers them on the GPU machines.'
             ''
             '| Metric | Covered | Total | Rate |'
             '| --- | ---: | ---: | ---: |'
