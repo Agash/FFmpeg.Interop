@@ -193,12 +193,24 @@ public sealed class HardwareTests
         using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.Vulkan);
         RequireDmaBufSharing(device);
         using HardwareFramePool producer = DmaBufProducer(device, 64, 48);
+
+        // A pool read by copies, so the imported picture can be copied out and compared.
         using HardwareFramePool pool = HardwareFramePool.Create(
             device,
             PixelFormat.Vulkan,
             PixelFormat.Nv12,
             64,
-            48
+            48,
+            configure: static pool =>
+            {
+                unsafe
+                {
+                    ((AVVulkanFramesContext*)pool.Context->hwctx)->usage =
+                        VkImageUsageFlagBits.VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                        | VkImageUsageFlagBits.VK_IMAGE_USAGE_TRANSFER_DST_BIT
+                        | VkImageUsageFlagBits.VK_IMAGE_USAGE_SAMPLED_BIT;
+                }
+            }
         );
         using VulkanDmaBufImporter importer = new(pool);
         (Frame source, byte[] pixels) = Uploaded(producer, seed: 29);
@@ -488,6 +500,11 @@ public sealed class HardwareTests
                         | VkImageUsageFlagBits.VK_IMAGE_USAGE_TRANSFER_SRC_BIT
                         | VkImageUsageFlagBits.VK_IMAGE_USAGE_SAMPLED_BIT;
                     frames->create_pnext = LinearOnly;
+
+                    // Without flags FFmpeg adds a mutable format, which DRM-modifier tiling would need
+                    // a format list for; a producer that writes the picture in its own format needs
+                    // neither.
+                    frames->img_flags = (uint)VkImageCreateFlagBits.VK_IMAGE_CREATE_ALIAS_BIT;
                 }
             }
         );

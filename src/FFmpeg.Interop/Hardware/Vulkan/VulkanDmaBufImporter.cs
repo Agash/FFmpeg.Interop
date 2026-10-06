@@ -34,19 +34,22 @@ public sealed unsafe partial class VulkanDmaBufImporter : IDisposable
     private const uint QueueFamilyExternal = ~1u;
     private const uint QueueFamilyForeign = ~2u;
 
-    // The usages an imported picture is read with: asking for more could exclude modifiers the
-    // producer's buffers have.
+    // An encoder's input is read only by the encoder: a video picture's usages must stay within those the
+    // driver lists for its profile, which need not include sampling or transfers. Other pools' pictures
+    // are read by shaders and copies.
+    private const uint EncoderUsages = (uint)
+        VkImageUsageFlagBits.VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR;
+
     private const uint ReadUsages =
         (uint)VkImageUsageFlagBits.VK_IMAGE_USAGE_SAMPLED_BIT
-        | (uint)VkImageUsageFlagBits.VK_IMAGE_USAGE_TRANSFER_SRC_BIT
-        | (uint)VkImageUsageFlagBits.VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR;
+        | (uint)VkImageUsageFlagBits.VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
     // A pool's images are created profile-independent when the encoder may use any profile, which an
-    // imported image must be too to be encoder input.
-    private const uint KeptCreateFlags =
-        (uint)VkImageCreateFlagBits.VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT
-        | (uint)VkImageCreateFlagBits.VK_IMAGE_CREATE_EXTENDED_USAGE_BIT
-        | (uint)VkImageCreateFlagBits.VK_IMAGE_CREATE_VIDEO_PROFILE_INDEPENDENT_BIT_KHR;
+    // imported image must be too to be encoder input. Views in other formats are not needed: the
+    // encoder reads the picture in its own format, and with DRM-modifier tiling a mutable format would
+    // have to list every view format.
+    private const uint KeptCreateFlags = (uint)
+        VkImageCreateFlagBits.VK_IMAGE_CREATE_VIDEO_PROFILE_INDEPENDENT_BIT_KHR;
 
     private readonly Lock _gate = new();
     private readonly SafeBufferHandle _pool;
@@ -104,7 +107,10 @@ public sealed unsafe partial class VulkanDmaBufImporter : IDisposable
             ? QueueFamilyForeign
             : QueueFamilyExternal;
         _format = frames->format[0];
-        _usage = (uint)frames->usage & ReadUsages;
+        _usage =
+            ((uint)frames->usage & EncoderUsages) != 0
+                ? EncoderUsages
+                : (uint)frames->usage & ReadUsages;
         _flags = frames->img_flags & KeptCreateFlags;
         _families = [.. Families(_context)];
         _pool = SafeBufferHandle.Own(av_buffer_ref(pool.NativePointer), "av_buffer_ref");

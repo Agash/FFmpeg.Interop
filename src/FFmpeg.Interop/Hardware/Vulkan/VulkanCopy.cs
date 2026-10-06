@@ -174,7 +174,10 @@ internal static unsafe class VulkanCopy
             },
         };
         frame->layout[index] = layout;
-        frame->access[index] = (uint)access;
+
+        // The submission's semaphore signal makes the copy's writes available to whatever waits on it, so
+        // no access is carried into the next user's barrier, as FFmpeg's own submissions leave it.
+        frame->access[index] = 0;
         if (transfer)
         {
             frame->queue_family[index] = family;
