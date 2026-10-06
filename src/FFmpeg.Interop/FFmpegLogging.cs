@@ -86,6 +86,7 @@ public static unsafe class FFmpegLogging
     /// <returns>The scope; scopes nest.</returns>
     public static DemotionScope Demote()
     {
+        Install();
         t_demotions++;
         return new DemotionScope(Environment.CurrentManagedThreadId);
     }
@@ -101,12 +102,27 @@ public static unsafe class FFmpegLogging
         {
             s_factory = factory;
             s_loggers.Clear();
-            av_log_set_callback(
-                factory is null
-                    ? (delegate* unmanaged[Cdecl]<void*, int, sbyte*, void*, void>)
-                        FFmpegLibraries.GetExport("avutil", "av_log_default_callback")
-                    : &Log
-            );
+            Install();
+        }
+    }
+
+    // FFmpeg's own callback, which writes to stderr: where messages go when no factory is set.
+    private static nint s_default;
+
+    private static bool s_installed;
+
+    // Takes FFmpeg's log once, for good: with no factory it still reaches stderr through FFmpeg's own
+    // callback, demoted where a scope asks.
+    private static void Install()
+    {
+        lock (s_gate)
+        {
+            if (!s_installed)
+            {
+                s_default = FFmpegLibraries.GetExport("avutil", "av_log_default_callback");
+                av_log_set_callback(&Log);
+                s_installed = true;
+            }
         }
     }
 
@@ -151,7 +167,20 @@ public static unsafe class FFmpegLogging
         try
         {
             ILoggerFactory? factory = s_factory;
-            if (factory is null || level > av_log_get_level())
+            if (factory is null)
+            {
+                // Demoted below FFmpeg's default threshold, a probe's expected failure is not printed.
+                int forwarded = t_demotions > 0 && level < AV_LOG_DEBUG ? AV_LOG_DEBUG : level;
+                ((delegate* unmanaged[Cdecl]<void*, int, sbyte*, void*, void>)s_default)(
+                    context,
+                    forwarded,
+                    format,
+                    arguments
+                );
+                return;
+            }
+
+            if (level > av_log_get_level())
             {
                 return;
             }
