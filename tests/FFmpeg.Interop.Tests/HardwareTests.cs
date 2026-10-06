@@ -308,6 +308,71 @@ public sealed class HardwareTests
         _ = Assert.ThrowsExactly<NotSupportedException>(() => system.CopyTo(from));
     }
 
+    // A hardware decoder's pool is fixed; the extra surfaces asked for cover the frames an application
+    // keeps while decoding goes on.
+    [TestMethod]
+    [TestCategory("RequiresGpu")]
+    public async Task HardwareDecode_KeepingFrames_DecodesWithExtraSurfaces()
+    {
+        const int Kept = 8;
+        string path = await TestMedia.ClipAsync("h264", TestContext.CancellationToken);
+        using HardwareDevice device = HardwareDevice.Create(PlatformType);
+        using MediaReader reader = MediaReader.Open(path);
+        using Decoder decoder = reader
+            .FindBestStream(MediaType.Video)!
+            .CreateDecoder(
+                options: new DecoderOptions { HardwareDevice = device, ExtraHardwareFrames = Kept }
+            );
+        unsafe
+        {
+            Assert.AreEqual(Kept, decoder.NativePointer->extra_hw_frames);
+        }
+
+        Queue<Frame> kept = new();
+        int decoded = 0;
+        using Packet packet = new();
+        using Frame frame = new();
+
+        void Keep(Frame picture)
+        {
+            Assert.IsTrue(picture.IsHardwareFrame);
+            Frame held = new();
+            held.Reference(picture);
+            kept.Enqueue(held);
+            if (kept.Count > Kept)
+            {
+                kept.Dequeue().Dispose();
+            }
+
+            decoded++;
+        }
+
+        try
+        {
+            while (reader.TryReadPacket(packet))
+            {
+                foreach (Frame picture in decoder.Decode(packet, frame))
+                {
+                    Keep(picture);
+                }
+            }
+
+            foreach (Frame picture in decoder.Decode(null, frame))
+            {
+                Keep(picture);
+            }
+        }
+        finally
+        {
+            while (kept.TryDequeue(out Frame? held))
+            {
+                held.Dispose();
+            }
+        }
+
+        Assert.AreEqual(TestMedia.FrameCount, decoded);
+    }
+
     [TestMethod]
     [TestCategory("RequiresHardwareDecoder")]
     [TestCategory("RequiresGpu")]

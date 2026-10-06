@@ -49,6 +49,13 @@ public sealed record DecoderOptions
     public IReadOnlyDictionary<string, string>? CodecOptions { get; init; }
 
     /// <summary>
+    /// Surfaces a hardware decoder allocates beyond what decoding needs (<c>extra_hw_frames</c>), for the
+    /// frames the application keeps: a playout queue, or an encoder reading decoded surfaces. Hardware
+    /// decoders allocate a fixed pool, so frames kept past it stall or fail decoding.
+    /// </summary>
+    public int ExtraHardwareFrames { get; init; }
+
+    /// <summary>
     /// On a <see cref="HardwareDeviceType.Vulkan"/> device (Linux), DRM format modifiers to decode into,
     /// on memory that can be exported, so <see cref="Frame.MapTo(Frame, HardwareMapAccess)"/> to
     /// <see cref="PixelFormat.DrmPrime"/> shares each picture as a DMA-BUF without a copy. The driver picks
@@ -133,10 +140,15 @@ public sealed unsafe class Decoder : CodecContext
                 );
             }
 
+            ArgumentOutOfRangeException.ThrowIfNegative(
+                options.ExtraHardwareFrames,
+                nameof(options)
+            );
             if (options.HardwareDevice is { } device)
             {
                 PixelFormat format = HardwareFormat(codec, device.Type);
                 context->hw_device_ctx = device.NewReference();
+                context->extra_hw_frames = options.ExtraHardwareFrames;
                 // What the get_format callback needs, in native memory the context's opaque pointer
                 // names: the callback is static and must not reach managed state through a handle it
                 // would have to look up on every stream change.
