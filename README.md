@@ -72,7 +72,9 @@ What a sender needs from an encoder is there without dropping to the native laye
 - **GPU inputs:** without a copy, `Frame.FromDrmPrime` imports DMA-BUFs (a PipeWire screencast, a V4L2
   camera) for `Frame.MapTo(pool, ...)` into VA-API surfaces, and `VulkanDmaBufImporter` imports them as
   images a Vulkan Video encoder reads in place (FFmpeg's own Vulkan mapping cannot be encoder input), with
-  `Acquire` and `Release` handing each buffer between its producer and the encoder;
+  `Acquire` and `Release` handing each buffer between its producer and the encoder; a producer that
+  synchronises explicitly (PipeWire's DRM syncobj timelines) passes its `DrmSyncPoint` to `Acquire`, and
+  the GPU waits for it, so the CPU never does (`WaitsForSyncPoints` says whether the device can);
   `SupportedModifiers` lists the layouts a producer can allocate to be read in place. `HardwareFramePool.WrapD3D12Texture`
   hands an application's D3D12 texture to a D3D12 encoder, ordered after the producer's queue on the
   GPU, and `HardwareFramePool.WrapCVPixelBuffer` and `WrapIOSurface` hand a pixel buffer or a bare IOSurface (a Syphon frame) to VideoToolbox.
@@ -82,6 +84,9 @@ What a sender needs from an encoder is there without dropping to the native laye
 - **GPU outputs:** `DecoderOptions.DrmModifiers` makes a Vulkan decoder decode into images with those
   DRM format modifiers on exportable memory, so `Frame.MapTo` to `PixelFormat.DrmPrime` shares each
   picture as a DMA-BUF without a copy (VA-API surfaces map the same way as they are).
+  `DecoderOptions.ExtraHardwareFrames` grows a hardware decoder's fixed surface pool for the frames the
+  application keeps (a playout queue, an encoder reading decoded surfaces), which would otherwise stall
+  decoding.
 - **Defined pictures:** `Frame.AllocateVideo` leaves the picture undefined, as FFmpeg does; `FillBlack`
   sets it to black at the frame's colour range.
 - **Capture devices:** `MediaReader.ListDevices("dshow")` lists a format's devices; `MediaReader.OpenDevice("v4l2", "/dev/video0")`
