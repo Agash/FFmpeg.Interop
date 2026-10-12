@@ -2,5 +2,8 @@
   "$schema": "https://aka.ms/CsWin32.schema.json",
   "allowMarshaling": false,
   "public": false,
-  "className": "Win32"
+  "className": "Win32",
+  "comInterop": {
+    "preserveSigMethods": ["ID3D12VideoDevice3.CheckFeatureSupport"]
+  }
 }

@@ -201,10 +201,30 @@ public sealed class HardwareCodecTests
     [DataRow("hevc_d3d12va", GpuVendor.Amd)]
     [DataRow("h264_d3d12va", GpuVendor.Intel)]
     [DataRow("hevc_d3d12va", GpuVendor.Intel)]
-    public Task D3D12Encode_ProducesAStreamFFmpegReadsBack(string encoder, GpuVendor vendor)
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    public async Task D3D12Encode_ProducesAStreamFFmpegReadsBack(string encoder, GpuVendor vendor)
     {
         RequireAdapter(vendor);
-        return AssertEncodeAsync(encoder, vendor, "d3d12va", EncoderInput.Surfaces);
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.D3D12VA,
+            Adapter(vendor)
+        );
+        RequireD3D12Encode(device, encoder, vendor);
+        await AssertEncodeOnDeviceAsync(encoder, device, EncoderInput.Surfaces);
+    }
+
+    // The query answers no for a codec D3D12 Video has no encoder for, and for a device of another API.
+    [TestMethod]
+    [TestCategory("RequiresGpu")]
+    [OSCondition(OperatingSystems.Windows)]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    public void CanD3D12Encode_AnotherCodecOrDeviceType_IsFalse()
+    {
+        using HardwareDevice d3d12 = HardwareDevice.Create(HardwareDeviceType.D3D12VA);
+        using HardwareDevice d3d11 = HardwareDevice.Create(HardwareDeviceType.D3D11VA);
+
+        Assert.IsFalse(d3d12.CanD3D12Encode(CodecId.Vp8));
+        Assert.IsFalse(d3d11.CanD3D12Encode(CodecId.H264));
     }
 
     // Vulkan Video, where the vendor's driver has it.
@@ -499,6 +519,7 @@ public sealed class HardwareCodecTests
             HardwareDeviceType.D3D12VA,
             Adapter(vendor)
         );
+        RequireD3D12Encode(opened, encoder, vendor);
         Assert.IsTrue(opened.TryGetD3D12(out D3D12Device application));
         using HardwareDevice device = HardwareDevice.FromD3D12Device(application.Device);
 
@@ -1260,6 +1281,43 @@ public sealed class HardwareCodecTests
         {
             Assert.Inconclusive($"No {vendor} GPU on this machine.");
         }
+    }
+
+    // A driver without D3D12 encoding for the codec has nothing to run on; the query has to agree with
+    // the encoder, which then fails to open.
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    private static void RequireD3D12Encode(HardwareDevice device, string encoder, GpuVendor vendor)
+    {
+        Codec codec = Codec.FindEncoder(encoder);
+        if (device.CanD3D12Encode(codec.Id))
+        {
+            return;
+        }
+
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.D3D12,
+            PixelFormat.Nv12,
+            640,
+            360
+        );
+        _ = Assert.Throws<FFmpegException>(
+            () =>
+                Encoder.Create(
+                    codec,
+                    new VideoEncoderOptions
+                    {
+                        Width = 640,
+                        Height = 360,
+                        PixelFormat = PixelFormat.D3D12,
+                        TimeBase = new(1, 30),
+                        MaxBFrames = 0,
+                        HardwareFrames = pool,
+                    }
+                ),
+            "the encoder opened where the driver reported no D3D12 encoding"
+        );
+        Assert.Inconclusive($"The {vendor} GPU's driver has no D3D12 Video encode for {codec.Id}.");
     }
 
     private static HardwareDeviceType DeviceType(string name) =>

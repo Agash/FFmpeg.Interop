@@ -79,6 +79,18 @@ public static unsafe class D3D12VAExtensions
             objects = new((nint)context->device, (nint)context->video_device);
             return true;
         }
+
+        /// <summary>
+        /// Whether a <see cref="HardwareDeviceType.D3D12VA"/> device can encode a codec with Direct3D 12
+        /// Video: the driver lists the codec and a rate control mode for it, which FFmpeg's encoder needs
+        /// to open. A GPU whose driver exposes only D3D12 decoding answers false.
+        /// </summary>
+        /// <param name="codec">The codec: H.264, HEVC or AV1.</param>
+        /// <returns>Whether the device encodes it.</returns>
+        public bool CanD3D12Encode(CodecId codec) =>
+            device.TryGetD3D12(out D3D12Device objects)
+            && D3D12.EncoderCodec(codec) is { } encoderCodec
+            && D3D12.CanEncode(objects.VideoDevice, encoderCodec);
     }
 
     extension(HardwareFramePool pool)

@@ -5,6 +5,8 @@ using FFmpeg.Interop.Native;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Direct3D12;
+using Windows.Win32.Media.MediaFoundation;
+using Windows.Win32.System.Com;
 using Windows.Win32.Security;
 using static FFmpeg.Interop.Native.LibAVUtil;
 
@@ -25,6 +27,83 @@ internal static unsafe class D3D12
         ((ID3D12DeviceChild*)deviceChild)->GetDevice(out ID3D12Device* device);
         _ = device->Release();
         return (nint)device;
+    }
+
+    // The D3D12 Video codec FFmpeg's encoder for a codec drives.
+    public static D3D12_VIDEO_ENCODER_CODEC? EncoderCodec(CodecId codec) =>
+        codec == CodecId.H264 ? D3D12_VIDEO_ENCODER_CODEC.D3D12_VIDEO_ENCODER_CODEC_H264
+        : codec == CodecId.Hevc ? D3D12_VIDEO_ENCODER_CODEC.D3D12_VIDEO_ENCODER_CODEC_HEVC
+        : codec == CodecId.Av1 ? D3D12_VIDEO_ENCODER_CODEC.D3D12_VIDEO_ENCODER_CODEC_AV1
+        : null;
+
+    // Whether the video device encodes the codec under some rate control mode, asked the way FFmpeg's
+    // encoder asks when it opens: a driver without D3D12 encoding fails the questions instead of
+    // answering no.
+    public static bool CanEncode(nint videoDevice, D3D12_VIDEO_ENCODER_CODEC codec)
+    {
+        if (videoDevice == 0)
+        {
+            return false;
+        }
+
+        Guid iid = typeof(ID3D12VideoDevice3).GUID;
+        void* queried;
+        if (((IUnknown*)videoDevice)->QueryInterface(&iid, &queried).Failed)
+        {
+            return false;
+        }
+
+        var video = (ID3D12VideoDevice3*)queried;
+        try
+        {
+            D3D12_FEATURE_DATA_VIDEO_ENCODER_CODEC listed = new() { Codec = codec };
+            if (
+                video
+                    ->CheckFeatureSupport(
+                        D3D12_FEATURE_VIDEO.D3D12_FEATURE_VIDEO_ENCODER_CODEC,
+                        &listed,
+                        (uint)sizeof(D3D12_FEATURE_DATA_VIDEO_ENCODER_CODEC)
+                    )
+                    .Failed || !listed.IsSupported
+            )
+            {
+                return false;
+            }
+
+            foreach (
+                D3D12_VIDEO_ENCODER_RATE_CONTROL_MODE mode in (ReadOnlySpan<D3D12_VIDEO_ENCODER_RATE_CONTROL_MODE>)
+                    [
+                        D3D12_VIDEO_ENCODER_RATE_CONTROL_MODE.D3D12_VIDEO_ENCODER_RATE_CONTROL_MODE_CQP,
+                        D3D12_VIDEO_ENCODER_RATE_CONTROL_MODE.D3D12_VIDEO_ENCODER_RATE_CONTROL_MODE_CBR,
+                        D3D12_VIDEO_ENCODER_RATE_CONTROL_MODE.D3D12_VIDEO_ENCODER_RATE_CONTROL_MODE_VBR,
+                    ]
+            )
+            {
+                D3D12_FEATURE_DATA_VIDEO_ENCODER_RATE_CONTROL_MODE rateControl = new()
+                {
+                    Codec = codec,
+                    RateControlMode = mode,
+                };
+                if (
+                    video
+                        ->CheckFeatureSupport(
+                            D3D12_FEATURE_VIDEO.D3D12_FEATURE_VIDEO_ENCODER_RATE_CONTROL_MODE,
+                            &rateControl,
+                            (uint)sizeof(D3D12_FEATURE_DATA_VIDEO_ENCODER_RATE_CONTROL_MODE)
+                        )
+                        .Succeeded && rateControl.IsSupported
+                )
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            _ = video->Release();
+        }
     }
 
     public static D3D12_RESOURCE_DESC GetDescription(nint resource) =>
