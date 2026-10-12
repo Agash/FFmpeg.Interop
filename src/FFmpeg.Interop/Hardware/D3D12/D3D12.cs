@@ -6,8 +6,8 @@ using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Direct3D12;
 using Windows.Win32.Media.MediaFoundation;
-using Windows.Win32.System.Com;
 using Windows.Win32.Security;
+using Windows.Win32.System.Com;
 using static FFmpeg.Interop.Native.LibAVUtil;
 
 namespace FFmpeg.Interop;

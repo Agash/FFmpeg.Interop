@@ -102,7 +102,9 @@ public static unsafe class D3D12VAExtensions
         /// <param name="resource">
         /// The <c>ID3D12Resource*</c>: a single 2D texture (one mip level, one array slice) on this pool's
         /// device (create the pool's device with <see cref="FromD3D12Device"/> from the application's), in
-        /// the pool's DXGI format and exactly the pool's size, in <c>D3D12_RESOURCE_STATE_COMMON</c>.
+        /// the pool's DXGI format and at least the pool's size, in <c>D3D12_RESOURCE_STATE_COMMON</c>. The
+        /// encoder reads the top-left pool-sized picture, so a decoder's surface padded to its block size
+        /// is encoded in place, as FFmpeg's own hardware transcoding hands it over.
         /// </param>
         /// <param name="producerQueue">
         /// The <c>ID3D12CommandQueue*</c> the texture was produced on: it is ready once the work submitted
@@ -299,12 +301,12 @@ public static unsafe class D3D12VAExtensions
             || description.DepthOrArraySize != 1
             || description.MipLevels != 1
             || (int)description.Format != format
-            || description.Width != (ulong)pool.Width
-            || description.Height != (uint)pool.Height
+            || description.Width < (ulong)pool.Width
+            || description.Height < (uint)pool.Height
         )
         {
             throw new ArgumentException(
-                $"The resource is a {description.Dimension} of {description.Width}x{description.Height}x{description.DepthOrArraySize} with {description.MipLevels} mip levels in DXGI format {(int)description.Format}; the pool needs a single 2D texture of {pool.Width}x{pool.Height} in format {format}.",
+                $"The resource is a {description.Dimension} of {description.Width}x{description.Height}x{description.DepthOrArraySize} with {description.MipLevels} mip levels in DXGI format {(int)description.Format}; the pool needs a single 2D texture of at least {pool.Width}x{pool.Height} in format {format}.",
                 nameof(resource)
             );
         }

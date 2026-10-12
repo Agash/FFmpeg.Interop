@@ -104,16 +104,18 @@ internal static partial class FFmpegCli
     public static async Task<double> PsnrAsync(
         string[] distorted,
         string[] reference,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? referenceFilter = null
     )
     {
+        string prepared = referenceFilter is null ? "" : referenceFilter + ",";
         string log = await FFmpegAsync(
                 cancellationToken,
                 [
                     .. distorted,
                     .. reference,
                     "-lavfi",
-                    "[0:v]settb=AVTB,setpts=N[a];[1:v]settb=AVTB,setpts=N[b];[a][b]psnr",
+                    $"[0:v]settb=AVTB,setpts=N[a];[1:v]{prepared}settb=AVTB,setpts=N[b];[a][b]psnr",
                     "-v",
                     "info",
                     "-f",

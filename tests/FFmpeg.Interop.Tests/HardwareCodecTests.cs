@@ -526,6 +526,36 @@ public sealed class HardwareCodecTests
         await AssertEncodeOnDeviceAsync(encoder, device, EncoderInput.WrappedD3D12Textures);
     }
 
+    // A decoder pads its surfaces to the codec's block size (1088 rows for 1080p); the encoder reads the
+    // picture from the top-left of the taller texture in place. Eight rows short, as 1080 is of 1088.
+    [TestMethod]
+    [TestCategory("RequiresGpu")]
+    [OSCondition(OperatingSystems.Windows)]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
+    [DataRow("h264_d3d12va", GpuVendor.Nvidia)]
+    [DataRow("hevc_d3d12va", GpuVendor.Nvidia)]
+    [DataRow("h264_d3d12va", GpuVendor.Amd)]
+    [DataRow("hevc_d3d12va", GpuVendor.Amd)]
+    public async Task WrapD3D12Texture_ATallerTexture_EncodesTheTopLeftPicture(
+        string encoder,
+        GpuVendor vendor
+    )
+    {
+        RequireAdapter(vendor);
+        using HardwareDevice device = HardwareDevice.Create(
+            HardwareDeviceType.D3D12VA,
+            Adapter(vendor)
+        );
+        RequireD3D12Encode(device, encoder, vendor);
+
+        await AssertEncodeOnDeviceAsync(
+            encoder,
+            device,
+            EncoderInput.WrappedD3D12Textures,
+            trimmedRows: 8
+        );
+    }
+
     [TestMethod]
     [TestCategory("RequiresGpu")]
     [OSCondition(OperatingSystems.Windows)]
@@ -1459,12 +1489,15 @@ public sealed class HardwareCodecTests
         await AssertEncodeOnDeviceAsync(encoder, device, input);
     }
 
+    // trimmedRows encodes a picture that many rows shorter than the textures holding it.
     private async Task AssertEncodeOnDeviceAsync(
         string encoderName,
         HardwareDevice device,
-        EncoderInput input
+        EncoderInput input,
+        int trimmedRows = 0
     )
     {
+        int height = TestMedia.Height - trimmedRows;
         CancellationToken cancellationToken = TestContext.CancellationToken;
         string raw = await TestMedia.RawVideoAsync("nv12", cancellationToken);
         byte[] video = await File.ReadAllBytesAsync(raw, cancellationToken);
@@ -1482,7 +1515,7 @@ public sealed class HardwareCodecTests
                     device.SurfaceFormat,
                     PixelFormat.Nv12,
                     TestMedia.Width,
-                    TestMedia.Height
+                    height
                 );
 
         // Stands in for the application's renderer: its own textures on the encoder's device. Each
@@ -1546,7 +1579,7 @@ public sealed class HardwareCodecTests
                 new VideoEncoderOptions
                 {
                     Width = TestMedia.Width,
-                    Height = TestMedia.Height,
+                    Height = height,
                     PixelFormat = pool?.Format ?? PixelFormat.Nv12,
                     TimeBase = new(1, TestMedia.FrameRate),
                     FrameRate = new(TestMedia.FrameRate, 1),
@@ -1675,7 +1708,7 @@ public sealed class HardwareCodecTests
             probed.GetProperty("codec_name").GetString()
         );
         Assert.AreEqual(TestMedia.Width, probed.GetProperty("width").GetInt32());
-        Assert.AreEqual(TestMedia.Height, probed.GetProperty("height").GetInt32());
+        Assert.AreEqual(height, probed.GetProperty("height").GetInt32());
         Assert.AreEqual(
             $"{TestMedia.FrameCount}",
             probed.GetProperty("nb_read_frames").GetString()
@@ -1684,7 +1717,8 @@ public sealed class HardwareCodecTests
         double psnr = await FFmpegCli.PsnrAsync(
             ["-i", output],
             FFmpegCli.RawVideoInput(raw, "nv12", TestMedia.Width, TestMedia.Height),
-            cancellationToken
+            cancellationToken,
+            trimmedRows == 0 ? null : $"crop={TestMedia.Width}:{height}:0:0"
         );
         Assert.IsGreaterThan(35.0, psnr, $"{encoderName}: PSNR {psnr:F1} dB against the source.");
     }
