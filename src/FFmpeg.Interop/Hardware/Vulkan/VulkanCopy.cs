@@ -5,13 +5,22 @@ namespace FFmpeg.Interop;
 // Copies one Vulkan frame's images into another's on the GPU, for two frames of one device. FFmpeg has
 // no such transfer: av_hwframe_transfer_data moves pictures between a surface and system memory only.
 // Both frames are locked while their state is read and advanced, and the copy is ordered by their
-// timeline semaphores. The call returns once the copy has finished, so the source may be released (a
-// mapped DMA-BUF unmapped) straight after.
+// timeline semaphores.
 internal static unsafe class VulkanCopy
 {
     internal const uint QueueFamilyIgnored = ~0u;
 
+    // Copies and returns once the copy has finished, so the source may be released (a mapped DMA-BUF
+    // unmapped) straight after.
     public static void Copy(Frame source, Frame destination)
+    {
+        using VulkanQueueWork work = new(Pool(source.NativePointer)->device_ctx);
+        work.Wait(Record(work, source, destination));
+    }
+
+    // Queues the copy on a work queue of the frames' device and returns the value of the queue's
+    // timeline it completes at.
+    public static ulong Record(VulkanQueueWork work, Frame source, Frame destination)
     {
         AVFrame* from = source.NativePointer;
         AVFrame* to = destination.NativePointer;
@@ -46,7 +55,13 @@ internal static unsafe class VulkanCopy
         AVVkFrame* dst = (AVVkFrame*)to->data[0];
         AVVulkanFramesContext* srcFrames = (AVVulkanFramesContext*)sourcePool->hwctx;
         AVVulkanFramesContext* dstFrames = (AVVulkanFramesContext*)destinationPool->hwctx;
-        using VulkanQueueWork work = new(sourcePool->device_ctx);
+        if (sourcePool->device_ctx != work.Device)
+        {
+            throw new ArgumentException(
+                "The frames are on another Vulkan device than the copier's.",
+                nameof(source)
+            );
+        }
 
         srcFrames->lock_frame(sourcePool, src);
         dstFrames->lock_frame(destinationPool, dst);
@@ -139,7 +154,7 @@ internal static unsafe class VulkanCopy
             srcFrames->unlock_frame(sourcePool, src);
         }
 
-        work.Wait(done);
+        return done;
     }
 
     // Moves one image into a layout, taking it from the queue family that owns it: an imported image

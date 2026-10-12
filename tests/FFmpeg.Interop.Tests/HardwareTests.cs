@@ -140,6 +140,128 @@ public sealed class HardwareTests
         }
     }
 
+    // Copies queue without waiting and stay ordered by the frames' semaphores: FFmpeg's download of the
+    // destination waits for each one, across several copies through one queue.
+    [TestMethod]
+    [TestCategory("RequiresVulkan")]
+    [DataRow("nv12")]
+    [DataRow("bgra")]
+    public void VulkanFrameCopier_QueuedCopies_ReachTheDestinationInOrder(string format)
+    {
+        using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.Vulkan);
+        using HardwareFramePool pool = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Parse(format),
+            64,
+            48
+        );
+        using VulkanFrameCopier copier = new(device);
+        (Frame first, _) = Uploaded(pool, seed: 31);
+        (Frame second, byte[] pixels) = Uploaded(pool, seed: 37);
+        using (first)
+        using (second)
+        {
+            using Frame copy = new();
+            pool.GetFrame(copy);
+            second.PresentationTimestamp = 7;
+
+            ulong a = copier.Copy(first, copy);
+            ulong b = copier.Copy(second, copy);
+
+            Assert.IsGreaterThan(a, b);
+            CollectionAssert.AreEqual(pixels, Downloaded(copy), "the later copy lands last");
+            Assert.AreEqual(7, copy.PresentationTimestamp);
+            Assert.IsTrue(copier.IsComplete(b), "the download waited for the copy");
+        }
+    }
+
+    [TestMethod]
+    public void VulkanFrameCopier_AnotherDeviceType_Throws()
+    {
+        HardwareDevice? device = null;
+        foreach (
+            HardwareDeviceType type in new[]
+            {
+                HardwareDeviceType.D3D11VA,
+                HardwareDeviceType.Vaapi,
+                HardwareDeviceType.VideoToolbox,
+            }
+        )
+        {
+            if (HardwareDevice.TryCreate(type, out device))
+            {
+                break;
+            }
+        }
+
+        if (device is null)
+        {
+            Assert.Inconclusive("No hardware device other than Vulkan opens here.");
+        }
+
+        using (device)
+        {
+            _ = Assert.ThrowsExactly<ArgumentException>(() => new VulkanFrameCopier(device));
+        }
+    }
+
+    // The encoder input's copy path for a modifier the encoder cannot read: the DMA-BUF imported once for
+    // reads, copied into an encoder surface without a CPU wait, then handed back after the copy.
+    [TestMethod]
+    [TestCategory("RequiresVulkan")]
+    [OSCondition(OperatingSystems.Linux)]
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    public void VulkanFrameCopier_FromAnImportedDmaBuf_CopiesBeforeTheHandBack()
+    {
+        using HardwareDevice device = HardwareDevice.Create(HardwareDeviceType.Vulkan);
+        RequireDmaBufSharing(device);
+        using HardwareFramePool producer = DmaBufProducer(device, 64, 48);
+        using HardwareFramePool reads = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Nv12,
+            64,
+            48,
+            configure: static pool =>
+            {
+                unsafe
+                {
+                    ((AVVulkanFramesContext*)pool.Context->hwctx)->usage =
+                        VkImageUsageFlagBits.VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                        | VkImageUsageFlagBits.VK_IMAGE_USAGE_SAMPLED_BIT;
+                }
+            }
+        );
+        using HardwareFramePool encoder = HardwareFramePool.Create(
+            device,
+            PixelFormat.Vulkan,
+            PixelFormat.Nv12,
+            64,
+            48
+        );
+        using VulkanDmaBufImporter importer = new(reads);
+        using VulkanFrameCopier copier = new(device);
+        (Frame source, byte[] pixels) = Uploaded(producer, seed: 41);
+        using (source)
+        {
+            using Frame drm = new();
+            drm.PixelFormat = PixelFormat.DrmPrime;
+            source.MapTo(drm, HardwareMapAccess.Read);
+            using Frame imported = new();
+            importer.Import(SingleLayer(drm), 64, 48, imported);
+            using Frame copy = new();
+            encoder.GetFrame(copy);
+
+            importer.Acquire(imported);
+            ulong done = copier.Copy(imported, copy);
+            importer.Release(imported);
+
+            Assert.IsTrue(copier.IsComplete(done), "the hand-back ran after the copy");
+            CollectionAssert.AreEqual(pixels, Downloaded(copy));
+        }
+    }
+
     // The path a DMA-BUF takes into a Vulkan encoder: mapped into Vulkan (an image the encoder cannot
     // read from directly), then copied into a surface of the encoder's own pool.
     [TestMethod]

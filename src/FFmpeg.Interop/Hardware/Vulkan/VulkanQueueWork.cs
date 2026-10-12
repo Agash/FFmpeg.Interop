@@ -74,6 +74,9 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
 
     public AVVulkanDeviceContext* Context => _context;
 
+    // The device the work runs on.
+    public AVHWDeviceContext* Device => _device;
+
     // A timeline semaphore starting at zero, on the device.
     public static void* Timeline(VulkanFunctions vk, AVVulkanDeviceContext* context)
     {
