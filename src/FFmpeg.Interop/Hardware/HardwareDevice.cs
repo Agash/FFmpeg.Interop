@@ -46,6 +46,7 @@ public sealed unsafe class HardwareDevice : IDisposable
     /// <param name="options">Type-specific options, as FFmpeg's <c>-init_hw_device</c> takes them.</param>
     /// <returns>The device.</returns>
     /// <exception cref="FFmpegException">The device could not be opened.</exception>
+    [SuppressMessage("ApiDesign", "RS0026", Justification = "The overloads differ in their second parameter type, so a call never binds ambiguously.")]
     public static HardwareDevice Create(
         HardwareDeviceType type,
         string? device = null,
@@ -75,6 +76,7 @@ public sealed unsafe class HardwareDevice : IDisposable
     /// <returns>The device.</returns>
     /// <exception cref="NotSupportedException">The type cannot be opened on a chosen GPU on this platform.</exception>
     /// <exception cref="FFmpegException">The device could not be opened on that GPU.</exception>
+    [SuppressMessage("ApiDesign", "RS0026", Justification = "The overloads differ in their second parameter type, so a call never binds ambiguously.")]
     public static HardwareDevice Create(
         HardwareDeviceType type,
         GpuAdapter adapter,
