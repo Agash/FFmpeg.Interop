@@ -32,7 +32,7 @@ public enum GpuVendor
 /// A physical GPU. FFmpeg has no notion of one: every device type picks its GPU its own way (a DXGI
 /// index for D3D11 and D3D12, a Vulkan index, a CUDA index, a render node path, or nothing at all for
 /// AMF, which opens the default adapter). An adapter is the one identity all of them are resolved from,
-/// by <see cref="HardwareDevice.Create(HardwareDeviceType, GpuAdapter, IReadOnlyDictionary{string, string}?)"/>.
+/// by <see cref="HardwareDevice.CreateForAdapter"/>.
 /// </summary>
 /// <remarks>
 /// On Windows adapters come from DXGI, in the order FFmpeg's D3D devices number them; on Linux from the

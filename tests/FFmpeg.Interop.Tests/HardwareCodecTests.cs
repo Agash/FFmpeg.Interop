@@ -162,7 +162,7 @@ public sealed class HardwareCodecTests
         string encoder
     )
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.Vulkan,
             Adapter(GpuVendor.Amd)
         );
@@ -205,7 +205,7 @@ public sealed class HardwareCodecTests
     public async Task D3D12Encode_ProducesAStreamFFmpegReadsBack(string encoder, GpuVendor vendor)
     {
         RequireAdapter(vendor);
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D12VA,
             Adapter(vendor)
         );
@@ -237,7 +237,7 @@ public sealed class HardwareCodecTests
     public async Task VulkanEncode_ProducesAStreamFFmpegReadsBack(string encoder, GpuVendor vendor)
     {
         RequireAdapter(vendor);
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.Vulkan,
             Adapter(vendor)
         );
@@ -322,15 +322,15 @@ public sealed class HardwareCodecTests
         Assert.IsNotNull(nvidia.Luid);
         Assert.IsGreaterThan(0L, nvidia.DedicatedVideoMemory);
 
-        using HardwareDevice vulkan = HardwareDevice.Create(HardwareDeviceType.Vulkan, nvidia);
+        using HardwareDevice vulkan = HardwareDevice.CreateForAdapter(HardwareDeviceType.Vulkan, nvidia);
         Assert.IsTrue(vulkan.TryGetLuid(out long luid));
         Assert.AreEqual(nvidia.Luid, luid, "Vulkan opened another GPU.");
 
-        using HardwareDevice cuda = HardwareDevice.Create(HardwareDeviceType.Cuda, nvidia);
+        using HardwareDevice cuda = HardwareDevice.CreateForAdapter(HardwareDeviceType.Cuda, nvidia);
         Assert.IsTrue(cuda.TryGetCudaContext(out nint context));
         Assert.AreNotEqual(0, context);
 
-        using HardwareDevice d3d12 = HardwareDevice.Create(HardwareDeviceType.D3D12VA, nvidia);
+        using HardwareDevice d3d12 = HardwareDevice.CreateForAdapter(HardwareDeviceType.D3D12VA, nvidia);
         Assert.IsTrue(d3d12.TryGetD3D12(out D3D12Device d3d12Device));
         Assert.AreNotEqual(0, d3d12Device.Device);
         Assert.AreNotEqual(0, d3d12Device.VideoDevice);
@@ -382,7 +382,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public void CudaSurfaces_ExposeDevicePointers()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.Cuda,
             Adapter(GpuVendor.Nvidia)
         );
@@ -408,7 +408,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public void D3D12Surfaces_RoundTripAndExposeTheirFence()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D12VA,
             Adapter(GpuVendor.Nvidia)
         );
@@ -445,7 +445,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public async Task ApplicationOwnedD3D11Device_EncodesItsSurfaces()
     {
-        using HardwareDevice opened = HardwareDevice.Create(
+        using HardwareDevice opened = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D11VA,
             Adapter(GpuVendor.Nvidia)
         );
@@ -462,7 +462,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public async Task ApplicationOwnedD3D12Device_EncodesItsSurfaces()
     {
-        using HardwareDevice opened = HardwareDevice.Create(
+        using HardwareDevice opened = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D12VA,
             Adapter(GpuVendor.Nvidia)
         );
@@ -479,7 +479,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public void FromD3D12Device_ReleasesTheApplicationsDeviceWhenFreed()
     {
-        using HardwareDevice opened = HardwareDevice.Create(
+        using HardwareDevice opened = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D12VA,
             Adapter(GpuVendor.Nvidia)
         );
@@ -515,7 +515,7 @@ public sealed class HardwareCodecTests
     )
     {
         RequireAdapter(vendor);
-        using HardwareDevice opened = HardwareDevice.Create(
+        using HardwareDevice opened = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D12VA,
             Adapter(vendor)
         );
@@ -542,7 +542,7 @@ public sealed class HardwareCodecTests
     )
     {
         RequireAdapter(vendor);
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D12VA,
             Adapter(vendor)
         );
@@ -623,7 +623,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public unsafe void WrapD3D12Texture_IsReadyWhenTheProducersQueueGetsThere()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D12VA,
             Adapter(GpuVendor.Nvidia)
         );
@@ -700,7 +700,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public unsafe void WrapD3D12Texture_WithAReadyFence_FollowsItWithoutAdvancingIt()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D12VA,
             Adapter(GpuVendor.Nvidia)
         );
@@ -783,7 +783,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public unsafe void CopyFromD3D12Texture_TakesTheTopLeftOfALargerTexture()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D12VA,
             Adapter(GpuVendor.Nvidia)
         );
@@ -846,7 +846,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public void WrapD3D12Texture_RefusesTexturesThePoolCannotHold()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D12VA,
             Adapter(GpuVendor.Nvidia)
         );
@@ -889,7 +889,7 @@ public sealed class HardwareCodecTests
             producer.WrapD3D12Texture(texture.Resource, 0, null!)
         );
 
-        using HardwareDevice d3d11 = HardwareDevice.Create(
+        using HardwareDevice d3d11 = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D11VA,
             Adapter(GpuVendor.Nvidia)
         );
@@ -915,9 +915,9 @@ public sealed class HardwareCodecTests
     {
         GpuAdapter amd = Adapter(GpuVendor.Amd);
         Assert.IsNotNull(amd.RenderNode);
-        using HardwareDevice drm = HardwareDevice.Create(HardwareDeviceType.Drm, amd);
+        using HardwareDevice drm = HardwareDevice.CreateForAdapter(HardwareDeviceType.Drm, amd);
         using HardwareDevice vaapi = drm.Derive(HardwareDeviceType.Vaapi);
-        using HardwareDevice vulkan = HardwareDevice.Create(HardwareDeviceType.Vulkan, amd);
+        using HardwareDevice vulkan = HardwareDevice.CreateForAdapter(HardwareDeviceType.Vulkan, amd);
 
         Assert.IsTrue(vaapi.TryGetVaapiDisplay(out nint display));
         Assert.AreNotEqual(0, display);
@@ -932,7 +932,7 @@ public sealed class HardwareCodecTests
     [TestCategory("RequiresNvidia")]
     public void Nvenc_SetRateControl_ChangesTheRateOfTheFollowingFrames()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.Cuda,
             Adapter(GpuVendor.Nvidia)
         );
@@ -963,7 +963,7 @@ public sealed class HardwareCodecTests
     [TestCategory("RequiresQsv")]
     public void Qsv_SetRateControl_ChangesTheRateOfTheFollowingFrames()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.Qsv,
             Adapter(GpuVendor.Intel)
         );
@@ -999,7 +999,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("windows10.0.10240")]
     public void CopyFromD3D11Texture_CopiesOnTheGpuAndRefusesAnotherDevicesTexture()
     {
-        using HardwareDevice nvidia = HardwareDevice.Create(
+        using HardwareDevice nvidia = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D11VA,
             Adapter(GpuVendor.Nvidia)
         );
@@ -1035,7 +1035,7 @@ public sealed class HardwareCodecTests
         CollectionAssert.AreEqual(pixels, back);
 
         // The same texture handed to a pool on the other GPU: a cross-device copy is undefined in D3D11.
-        using HardwareDevice amd = HardwareDevice.Create(
+        using HardwareDevice amd = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.D3D11VA,
             Adapter(GpuVendor.Amd)
         );
@@ -1085,7 +1085,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]
     public void DrmPrimeImport_MapsDmaBufsIntoVaapiSurfaces()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.Vaapi,
             Adapter(GpuVendor.Amd)
         );
@@ -1149,7 +1149,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("macos")]
     public void WrapCVPixelBuffer_SharesThePixelBufferWithoutACopy()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.VideoToolbox,
             Adapter(GpuVendor.Apple)
         );
@@ -1192,7 +1192,7 @@ public sealed class HardwareCodecTests
     [System.Runtime.Versioning.SupportedOSPlatform("macos")]
     public void WrapIOSurface_SharesTheSurfaceWithoutACopy()
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.VideoToolbox,
             Adapter(GpuVendor.Apple)
         );
@@ -1376,7 +1376,7 @@ public sealed class HardwareCodecTests
             RequireAdapter(vendor);
         }
 
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             DeviceType(deviceType),
             Adapter(vendor)
         );
@@ -1389,7 +1389,7 @@ public sealed class HardwareCodecTests
 
         // A consumer of the shared pictures: another Vulkan device, reading each one from its DMA-BUF.
         using HardwareDevice? consumer = sharedAsDmaBufs
-            ? HardwareDevice.Create(HardwareDeviceType.Vulkan, Adapter(vendor))
+            ? HardwareDevice.CreateForAdapter(HardwareDeviceType.Vulkan, Adapter(vendor))
             : null;
         HardwareFramePool? imports = null;
         List<string> hardware = [];
@@ -1482,7 +1482,7 @@ public sealed class HardwareCodecTests
         EncoderInput input
     )
     {
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             DeviceType(deviceType),
             Adapter(vendor)
         );
@@ -1555,7 +1555,7 @@ public sealed class HardwareCodecTests
         // Stands in for another producer of DMA-BUFs on the GPU: VA-API surfaces, exported.
         using HardwareDevice? vaapi =
             input == EncoderInput.ImportedDmaBufs
-                ? HardwareDevice.Create(HardwareDeviceType.Vaapi, Adapter(GpuVendor.Amd))
+                ? HardwareDevice.CreateForAdapter(HardwareDeviceType.Vaapi, Adapter(GpuVendor.Amd))
                 : null;
         using HardwareFramePool? dmaBufs = vaapi is null
             ? null
@@ -1735,7 +1735,7 @@ public sealed class HardwareCodecTests
         using Scratch scratch = new();
         string output = scratch["transcoded.ts"];
 
-        using HardwareDevice device = HardwareDevice.Create(
+        using HardwareDevice device = HardwareDevice.CreateForAdapter(
             DeviceType(deviceType),
             Adapter(vendor)
         );

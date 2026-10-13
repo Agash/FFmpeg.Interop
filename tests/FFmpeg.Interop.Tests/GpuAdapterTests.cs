@@ -116,21 +116,21 @@ public sealed class GpuAdapterTests
         GpuAdapter bare = new() { Name = "bare" };
 
         _ = Assert.ThrowsExactly<NotSupportedException>(() =>
-            HardwareDevice.Create(HardwareDeviceType.D3D11VA, bare)
+            HardwareDevice.CreateForAdapter(HardwareDeviceType.D3D11VA, bare)
         );
         _ = Assert.ThrowsExactly<NotSupportedException>(() =>
-            HardwareDevice.Create(HardwareDeviceType.Vaapi, bare)
+            HardwareDevice.CreateForAdapter(HardwareDeviceType.Vaapi, bare)
         );
         _ = Assert.ThrowsExactly<NotSupportedException>(() =>
-            HardwareDevice.Create(HardwareDeviceType.OpenCL, bare)
+            HardwareDevice.CreateForAdapter(HardwareDeviceType.OpenCL, bare)
         );
         _ = Assert.ThrowsExactly<ArgumentNullException>(() =>
-            HardwareDevice.Create(HardwareDeviceType.Vulkan, (GpuAdapter)null!)
+            HardwareDevice.CreateForAdapter(HardwareDeviceType.Vulkan, null!)
         );
         if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 10240))
         {
             _ = Assert.ThrowsExactly<NotSupportedException>(() =>
-                HardwareDevice.Create(HardwareDeviceType.Vulkan, bare)
+                HardwareDevice.CreateForAdapter(HardwareDeviceType.Vulkan, bare)
             );
             WrapNullDeviceThrows();
         }
