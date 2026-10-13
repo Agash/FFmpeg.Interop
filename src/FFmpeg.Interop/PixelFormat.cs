@@ -19,6 +19,9 @@ public readonly unsafe record struct PixelFormat(AVPixelFormat Value)
     /// <summary>Planar 10-bit 4:2:0 YUV, little-endian.</summary>
     public static PixelFormat Yuv420P10 => new(AV_PIX_FMT_YUV420P10LE);
 
+    /// <summary>Planar 4:2:0 Y'CbCr with a full-resolution alpha plane, 8 bits a sample.</summary>
+    public static PixelFormat Yuva420P => new(AV_PIX_FMT_YUVA420P);
+
     /// <summary>Semi-planar 8-bit 4:2:0 YUV: a Y plane and an interleaved UV plane.</summary>
     public static PixelFormat Nv12 => new(AV_PIX_FMT_NV12);
 
@@ -33,6 +36,12 @@ public readonly unsafe record struct PixelFormat(AVPixelFormat Value)
 
     /// <summary>Packed 8-bit RGBA.</summary>
     public static PixelFormat Rgba => new(AV_PIX_FMT_RGBA);
+
+    /// <summary>Packed 4:4:4 Y'CbCr with alpha, 8 bits a sample (A, Y, Cb, Cr): what VideoToolbox decodes an alpha layer into.</summary>
+    public static PixelFormat Ayuv => new(AV_PIX_FMT_AYUV);
+
+    /// <summary>Packed 4:4:4 Y'CbCr with alpha, 16 bits a sample, for streams of more than 8 bits.</summary>
+    public static PixelFormat Ayuv64 => new(AV_PIX_FMT_AYUV64LE);
 
     /// <summary>Direct3D 11 textures.</summary>
     public static PixelFormat D3D11 => new(AV_PIX_FMT_D3D11);
@@ -81,6 +90,9 @@ public readonly unsafe record struct PixelFormat(AVPixelFormat Value)
 
     /// <summary>The vertical chroma subsampling as a shift: 1 for 4:2:0, 0 for 4:2:2 and 4:4:4.</summary>
     public int ChromaShiftY => Descriptor is null ? 0 : Descriptor->log2_chroma_h;
+
+    /// <summary>The bits of each luma sample, or 0 for <see cref="None"/> and hardware formats.</summary>
+    public int ComponentDepth => Descriptor is null ? 0 : Descriptor->comp.e0.depth;
 
     /// <summary>The native descriptor, or null for <see cref="None"/> and unknown values.</summary>
     public AVPixFmtDescriptor* Descriptor => LibAVUtil.av_pix_fmt_desc_get(Value);

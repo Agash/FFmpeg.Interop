@@ -158,6 +158,23 @@ public sealed unsafe class Packet : IDisposable
     /// <summary>Releases the data and clears the properties, keeping the instance for reuse.</summary>
     public void Reset() => av_packet_unref(NativePointer);
 
+    /// <summary>A new packet referencing the same data, without copying it, to keep past the next decode or encode.</summary>
+    /// <returns>The new packet.</returns>
+    public Packet Clone()
+    {
+        Packet clone = new();
+        try
+        {
+            clone.Reference(this);
+            return clone;
+        }
+        catch
+        {
+            clone.Dispose();
+            throw;
+        }
+    }
+
     /// <summary>Makes this packet another reference to <paramref name="source"/>'s data, without copying it.</summary>
     /// <param name="source">The packet to share.</param>
     public void Reference(Packet source)
