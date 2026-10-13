@@ -164,6 +164,16 @@ public sealed unsafe class Frame : IDisposable
         set => NativePointer->colorspace = (AVColorSpace)value;
     }
 
+    /// <summary>
+    /// Where the frame's chroma samples sit. The <see cref="Scaler"/> converts to it when it is set on the
+    /// destination, as it does the other colour properties.
+    /// </summary>
+    public ChromaLocation ChromaLocation
+    {
+        get => (ChromaLocation)NativePointer->chroma_location;
+        set => NativePointer->chroma_location = (AVChromaLocation)value;
+    }
+
     /// <summary>Whether the frame holds picture or sample data.</summary>
     public bool HasData => NativePointer->buf.e0 is not null;
 

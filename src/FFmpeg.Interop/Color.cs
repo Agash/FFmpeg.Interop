@@ -161,3 +161,30 @@ public enum ColorSpace
     /// <summary>ICtCp (BT.2100).</summary>
     ICtCp = AVColorSpace.AVCOL_SPC_ICTCP,
 }
+
+/// <summary>
+/// Where a subsampled format's chroma samples sit relative to luma (H.273 chroma_sample_loc_type).
+/// </summary>
+public enum ChromaLocation
+{
+    /// <summary>Not specified; H.264, H.265 and AV1 decoders take it as <see cref="Left"/>.</summary>
+    Unspecified = AVChromaLocation.AVCHROMA_LOC_UNSPECIFIED,
+
+    /// <summary>On the left luma column, between the two rows: MPEG-2 and later, the video default.</summary>
+    Left = AVChromaLocation.AVCHROMA_LOC_LEFT,
+
+    /// <summary>Centred between four luma samples: MPEG-1 and JPEG.</summary>
+    Center = AVChromaLocation.AVCHROMA_LOC_CENTER,
+
+    /// <summary>On the top-left luma sample: BT.2020 and BT.2100's preference.</summary>
+    TopLeft = AVChromaLocation.AVCHROMA_LOC_TOPLEFT,
+
+    /// <summary>Centred horizontally on the top row.</summary>
+    Top = AVChromaLocation.AVCHROMA_LOC_TOP,
+
+    /// <summary>On the bottom-left luma sample.</summary>
+    BottomLeft = AVChromaLocation.AVCHROMA_LOC_BOTTOMLEFT,
+
+    /// <summary>Centred horizontally on the bottom row.</summary>
+    Bottom = AVChromaLocation.AVCHROMA_LOC_BOTTOM,
+}

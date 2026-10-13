@@ -13,12 +13,53 @@ public sealed class ColorTests
             ColorPrimaries = ColorPrimaries.Bt2020,
             ColorTransfer = ColorTransfer.Pq,
             ColorSpace = ColorSpace.Bt2020Ncl,
+            ChromaLocation = ChromaLocation.TopLeft,
         };
 
+        Assert.AreEqual(ChromaLocation.TopLeft, frame.ChromaLocation);
         Assert.AreEqual(ColorRange.Full, frame.ColorRange);
         Assert.AreEqual(ColorPrimaries.Bt2020, frame.ColorPrimaries);
         Assert.AreEqual(ColorTransfer.Pq, frame.ColorTransfer);
         Assert.AreEqual(ColorSpace.Bt2020Ncl, frame.ColorSpace);
+    }
+
+    // A red column just left of a chroma block's two columns: left-sited chroma sits on the block's left
+    // column and takes some of its neighbour in, centred chroma sits between the two and takes none.
+    [TestMethod]
+    public void Scaler_SitesChromaWhereTheDestinationSays()
+    {
+        TestNatives.Require();
+        byte ChromaRedAfterTheEdge(ChromaLocation location)
+        {
+            using Frame source = new();
+            source.AllocateVideo(16, 2, PixelFormat.Rgb24);
+            ImagePlane rgb = source.GetWritablePlane(0);
+            for (int row = 0; row < 2; row++)
+            {
+                Span<byte> line = rgb.GetRow(row);
+                line.Clear();
+                line[7 * 3] = 255;
+            }
+
+            using Frame destination = new()
+            {
+                Width = 16,
+                Height = 2,
+                PixelFormat = PixelFormat.Yuv420P,
+                ColorSpace = ColorSpace.Bt709,
+                ColorRange = ColorRange.Limited,
+                ChromaLocation = location,
+            };
+            using Scaler scaler = new();
+            scaler.Scale(source, destination);
+            Assert.AreEqual(location, destination.ChromaLocation);
+            return destination.GetPlane(2).GetRow(0)[4];
+        }
+
+        byte left = ChromaRedAfterTheEdge(ChromaLocation.Left);
+        byte centre = ChromaRedAfterTheEdge(ChromaLocation.Center);
+
+        Assert.IsGreaterThan(centre + 4, left, $"Cr: left-sited {left}, centred {centre}.");
     }
 
     // The encoder writes the colour it was opened with into the bitstream (the AV1 sequence header's
