@@ -322,15 +322,24 @@ public sealed class HardwareCodecTests
         Assert.IsNotNull(nvidia.Luid);
         Assert.IsGreaterThan(0L, nvidia.DedicatedVideoMemory);
 
-        using HardwareDevice vulkan = HardwareDevice.CreateForAdapter(HardwareDeviceType.Vulkan, nvidia);
+        using HardwareDevice vulkan = HardwareDevice.CreateForAdapter(
+            HardwareDeviceType.Vulkan,
+            nvidia
+        );
         Assert.IsTrue(vulkan.TryGetLuid(out long luid));
         Assert.AreEqual(nvidia.Luid, luid, "Vulkan opened another GPU.");
 
-        using HardwareDevice cuda = HardwareDevice.CreateForAdapter(HardwareDeviceType.Cuda, nvidia);
+        using HardwareDevice cuda = HardwareDevice.CreateForAdapter(
+            HardwareDeviceType.Cuda,
+            nvidia
+        );
         Assert.IsTrue(cuda.TryGetCudaContext(out nint context));
         Assert.AreNotEqual(0, context);
 
-        using HardwareDevice d3d12 = HardwareDevice.CreateForAdapter(HardwareDeviceType.D3D12VA, nvidia);
+        using HardwareDevice d3d12 = HardwareDevice.CreateForAdapter(
+            HardwareDeviceType.D3D12VA,
+            nvidia
+        );
         Assert.IsTrue(d3d12.TryGetD3D12(out D3D12Device d3d12Device));
         Assert.AreNotEqual(0, d3d12Device.Device);
         Assert.AreNotEqual(0, d3d12Device.VideoDevice);
@@ -917,7 +926,10 @@ public sealed class HardwareCodecTests
         Assert.IsNotNull(amd.RenderNode);
         using HardwareDevice drm = HardwareDevice.CreateForAdapter(HardwareDeviceType.Drm, amd);
         using HardwareDevice vaapi = drm.Derive(HardwareDeviceType.Vaapi);
-        using HardwareDevice vulkan = HardwareDevice.CreateForAdapter(HardwareDeviceType.Vulkan, amd);
+        using HardwareDevice vulkan = HardwareDevice.CreateForAdapter(
+            HardwareDeviceType.Vulkan,
+            amd
+        );
 
         Assert.IsTrue(vaapi.TryGetVaapiDisplay(out nint display));
         Assert.AreNotEqual(0, display);

@@ -6,6 +6,9 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <!-- Needed for IDE0005 (unused usings) to run in the build. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- The XML file only feeds IDE0005; a native executable ships without it, and on macOS the SDK's
+         AOT publish looks for it where it never copies it (MSB3030 with SDK 11 rc.2). -->
+    <PublishDocumentationFile>false</PublishDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

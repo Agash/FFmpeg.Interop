@@ -38,7 +38,7 @@ jobs:
           # macOS runners are Apple-silicon VMs: VideoToolbox devices, surfaces and encoders work there, but
           # their paravirtualized decoder does not reproduce the hardware decoder bit for bit, so the
           # bit-exact decode comparisons run on the physical Mac only.
-          - { os: macos-26, rid: osx-arm64, filter: "TestCategory!=RequiresNvidia&TestCategory!=RequiresAmf&TestCategory!=RequiresQsv&TestCategory!=RequiresVaapi&TestCategory!=RequiresVulkan&TestCategory!=RequiresHardwareDecoder", format: false }
+          - { os: xcode-27, rid: osx-arm64, filter: "TestCategory!=RequiresNvidia&TestCategory!=RequiresAmf&TestCategory!=RequiresQsv&TestCategory!=RequiresVaapi&TestCategory!=RequiresVulkan&TestCategory!=RequiresHardwareDecoder", format: false }
 
     steps:
       - uses: actions/checkout@v7
