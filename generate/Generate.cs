@@ -829,6 +829,7 @@ static class Passes
             "LibAVUtil",
             Host.Windows,
             [
+                "libavutil/audio_fifo.h",
                 "libavutil/avutil.h",
                 "libavutil/buffer.h",
                 "libavutil/channel_layout.h",
@@ -853,6 +854,7 @@ static class Passes
                 "libavutil/version.h",
             ],
             [
+                Util + "audio_fifo.h",
                 Util + "avutil.h",
                 Util + "buffer.h",
                 Util + "channel_layout.h",
@@ -908,7 +910,11 @@ static class Passes
         Library("swresample", "LibSwResample", ["swresample.h", "version.h", "version_major.h"]),
         // Only the version: libavfilter is not bound yet, but libavdevice links it, so the loader must load
         // and check it before libavdevice resolves.
-        Library("avfilter", "LibAVFilter", ["version_major.h"]),
+        Library(
+            "avfilter",
+            "LibAVFilter",
+            ["avfilter.h", "buffersrc.h", "buffersink.h", "version_major.h"]
+        ),
         // Hardware contexts: one pass per API, each traversing only its own hwcontext header. The
         // SDK types they mention stay opaque (remapped to void, so pointers become void*); a
         // consumer holds them as the handles the SDK's own bindings define.

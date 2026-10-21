@@ -12,6 +12,90 @@ namespace FFmpeg.Interop.Native;
 public static unsafe partial class LibAVUtil
 {
     [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [return: NativeTypeName("const char *")]
+    [SuppressGCTransition]
+    public static extern sbyte* av_get_sample_fmt_name([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [return: NativeTypeName("enum AVSampleFormat")]
+    public static extern AVSampleFormat av_get_sample_fmt([NativeTypeName("const char *")] sbyte* name);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [return: NativeTypeName("enum AVSampleFormat")]
+    public static extern AVSampleFormat av_get_alt_sample_fmt([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int planar);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [return: NativeTypeName("enum AVSampleFormat")]
+    public static extern AVSampleFormat av_get_packed_sample_fmt([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [return: NativeTypeName("enum AVSampleFormat")]
+    public static extern AVSampleFormat av_get_planar_sample_fmt([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [return: NativeTypeName("char *")]
+    public static extern sbyte* av_get_sample_fmt_string([NativeTypeName("char *")] sbyte* buf, int buf_size, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [SuppressGCTransition]
+    public static extern int av_get_bytes_per_sample([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    [SuppressGCTransition]
+    public static extern int av_sample_fmt_is_planar([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_samples_get_buffer_size(int* linesize, int nb_channels, int nb_samples, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int align);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_samples_fill_arrays([NativeTypeName("uint8_t **")] byte** audio_data, int* linesize, [NativeTypeName("const uint8_t *")] byte* buf, int nb_channels, int nb_samples, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int align);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_samples_alloc([NativeTypeName("uint8_t **")] byte** audio_data, int* linesize, int nb_channels, int nb_samples, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int align);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_samples_alloc_array_and_samples([NativeTypeName("uint8_t ***")] byte*** audio_data, int* linesize, int nb_channels, int nb_samples, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int align);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_samples_copy([NativeTypeName("uint8_t *const *")] byte** dst, [NativeTypeName("uint8_t *const *")] byte** src, int dst_offset, int src_offset, int nb_samples, int nb_channels, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_samples_set_silence([NativeTypeName("uint8_t *const *")] byte** audio_data, int offset, int nb_samples, int nb_channels, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern void av_audio_fifo_free(AVAudioFifo* af);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern AVAudioFifo* av_audio_fifo_alloc([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int channels, int nb_samples);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_audio_fifo_realloc(AVAudioFifo* af, int nb_samples);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_audio_fifo_write(AVAudioFifo* af, [NativeTypeName("void *const *")] void** data, int nb_samples);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_audio_fifo_peek([NativeTypeName("const AVAudioFifo *")] AVAudioFifo* af, [NativeTypeName("void *const *")] void** data, int nb_samples);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_audio_fifo_peek_at([NativeTypeName("const AVAudioFifo *")] AVAudioFifo* af, [NativeTypeName("void *const *")] void** data, int nb_samples, int offset);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_audio_fifo_read(AVAudioFifo* af, [NativeTypeName("void *const *")] void** data, int nb_samples);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_audio_fifo_drain(AVAudioFifo* af, int nb_samples);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern void av_audio_fifo_reset(AVAudioFifo* af);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_audio_fifo_size(AVAudioFifo* af);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int av_audio_fifo_space(AVAudioFifo* af);
+
+    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     [return: NativeTypeName("unsigned int")]
     [SuppressGCTransition]
     public static extern uint avutil_version();
@@ -406,57 +490,6 @@ public static unsafe partial class LibAVUtil
 
     [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     public static extern void av_display_matrix_flip([NativeTypeName("int32_t[9]")] int* matrix, int hflip, int vflip);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    [return: NativeTypeName("const char *")]
-    [SuppressGCTransition]
-    public static extern sbyte* av_get_sample_fmt_name([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    [return: NativeTypeName("enum AVSampleFormat")]
-    public static extern AVSampleFormat av_get_sample_fmt([NativeTypeName("const char *")] sbyte* name);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    [return: NativeTypeName("enum AVSampleFormat")]
-    public static extern AVSampleFormat av_get_alt_sample_fmt([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int planar);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    [return: NativeTypeName("enum AVSampleFormat")]
-    public static extern AVSampleFormat av_get_packed_sample_fmt([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    [return: NativeTypeName("enum AVSampleFormat")]
-    public static extern AVSampleFormat av_get_planar_sample_fmt([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    [return: NativeTypeName("char *")]
-    public static extern sbyte* av_get_sample_fmt_string([NativeTypeName("char *")] sbyte* buf, int buf_size, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    [SuppressGCTransition]
-    public static extern int av_get_bytes_per_sample([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    [SuppressGCTransition]
-    public static extern int av_sample_fmt_is_planar([NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    public static extern int av_samples_get_buffer_size(int* linesize, int nb_channels, int nb_samples, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int align);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    public static extern int av_samples_fill_arrays([NativeTypeName("uint8_t **")] byte** audio_data, int* linesize, [NativeTypeName("const uint8_t *")] byte* buf, int nb_channels, int nb_samples, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int align);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    public static extern int av_samples_alloc([NativeTypeName("uint8_t **")] byte** audio_data, int* linesize, int nb_channels, int nb_samples, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int align);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    public static extern int av_samples_alloc_array_and_samples([NativeTypeName("uint8_t ***")] byte*** audio_data, int* linesize, int nb_channels, int nb_samples, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt, int align);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    public static extern int av_samples_copy([NativeTypeName("uint8_t *const *")] byte** dst, [NativeTypeName("uint8_t *const *")] byte** src, int dst_offset, int src_offset, int nb_samples, int nb_channels, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
-
-    [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    public static extern int av_samples_set_silence([NativeTypeName("uint8_t *const *")] byte** audio_data, int offset, int nb_samples, int nb_channels, [NativeTypeName("enum AVSampleFormat")] AVSampleFormat sample_fmt);
 
     [DllImport("avutil", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     public static extern AVFrame* av_frame_alloc();

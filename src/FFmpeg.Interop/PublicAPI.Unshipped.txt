@@ -610,6 +610,8 @@ FFmpeg.Interop.Native.AVAppToDevMessageType.AV_APP_TO_DEV_TOGGLE_PAUSE = 1346458
 FFmpeg.Interop.Native.AVAppToDevMessageType.AV_APP_TO_DEV_UNMUTE = 1431131476 -> FFmpeg.Interop.Native.AVAppToDevMessageType
 FFmpeg.Interop.Native.AVAppToDevMessageType.AV_APP_TO_DEV_WINDOW_REPAINT = 1380274241 -> FFmpeg.Interop.Native.AVAppToDevMessageType
 FFmpeg.Interop.Native.AVAppToDevMessageType.AV_APP_TO_DEV_WINDOW_SIZE = 1195724621 -> FFmpeg.Interop.Native.AVAppToDevMessageType
+FFmpeg.Interop.Native.AVAudioFifo
+FFmpeg.Interop.Native.AVAudioFifo.AVAudioFifo() -> void
 FFmpeg.Interop.Native.AVAudioServiceType
 FFmpeg.Interop.Native.AVAudioServiceType.AV_AUDIO_SERVICE_TYPE_COMMENTARY = 5 -> FFmpeg.Interop.Native.AVAudioServiceType
 FFmpeg.Interop.Native.AVAudioServiceType.AV_AUDIO_SERVICE_TYPE_DIALOGUE = 4 -> FFmpeg.Interop.Native.AVAudioServiceType
@@ -648,6 +650,22 @@ FFmpeg.Interop.Native.AVBufferRef.AVBufferRef() -> void
 FFmpeg.Interop.Native.AVBufferRef.buffer -> FFmpeg.Interop.Native.AVBuffer*
 FFmpeg.Interop.Native.AVBufferRef.data -> byte*
 FFmpeg.Interop.Native.AVBufferRef.size -> nuint
+FFmpeg.Interop.Native.AVBufferSrcParameters
+FFmpeg.Interop.Native.AVBufferSrcParameters.AVBufferSrcParameters() -> void
+FFmpeg.Interop.Native.AVBufferSrcParameters.alpha_mode -> FFmpeg.Interop.Native.AVAlphaMode
+FFmpeg.Interop.Native.AVBufferSrcParameters.ch_layout -> FFmpeg.Interop.Native.AVChannelLayout
+FFmpeg.Interop.Native.AVBufferSrcParameters.color_range -> FFmpeg.Interop.Native.AVColorRange
+FFmpeg.Interop.Native.AVBufferSrcParameters.color_space -> FFmpeg.Interop.Native.AVColorSpace
+FFmpeg.Interop.Native.AVBufferSrcParameters.format -> int
+FFmpeg.Interop.Native.AVBufferSrcParameters.frame_rate -> FFmpeg.Interop.Native.AVRational
+FFmpeg.Interop.Native.AVBufferSrcParameters.height -> int
+FFmpeg.Interop.Native.AVBufferSrcParameters.hw_frames_ctx -> FFmpeg.Interop.Native.AVBufferRef*
+FFmpeg.Interop.Native.AVBufferSrcParameters.nb_side_data -> int
+FFmpeg.Interop.Native.AVBufferSrcParameters.sample_aspect_ratio -> FFmpeg.Interop.Native.AVRational
+FFmpeg.Interop.Native.AVBufferSrcParameters.sample_rate -> int
+FFmpeg.Interop.Native.AVBufferSrcParameters.side_data -> FFmpeg.Interop.Native.AVFrameSideData**
+FFmpeg.Interop.Native.AVBufferSrcParameters.time_base -> FFmpeg.Interop.Native.AVRational
+FFmpeg.Interop.Native.AVBufferSrcParameters.width -> int
 FFmpeg.Interop.Native.AVCPBProperties
 FFmpeg.Interop.Native.AVCPBProperties.AVCPBProperties() -> void
 FFmpeg.Interop.Native.AVCPBProperties.avg_bitrate -> long
@@ -1915,6 +1933,109 @@ FFmpeg.Interop.Native.AVFieldOrder.AV_FIELD_PROGRESSIVE = 1 -> FFmpeg.Interop.Na
 FFmpeg.Interop.Native.AVFieldOrder.AV_FIELD_TB = 4 -> FFmpeg.Interop.Native.AVFieldOrder
 FFmpeg.Interop.Native.AVFieldOrder.AV_FIELD_TT = 2 -> FFmpeg.Interop.Native.AVFieldOrder
 FFmpeg.Interop.Native.AVFieldOrder.AV_FIELD_UNKNOWN = 0 -> FFmpeg.Interop.Native.AVFieldOrder
+FFmpeg.Interop.Native.AVFilter
+FFmpeg.Interop.Native.AVFilter.AVFilter() -> void
+FFmpeg.Interop.Native.AVFilter.description -> sbyte*
+FFmpeg.Interop.Native.AVFilter.flags -> int
+FFmpeg.Interop.Native.AVFilter.inputs -> FFmpeg.Interop.Native.AVFilterPad*
+FFmpeg.Interop.Native.AVFilter.name -> sbyte*
+FFmpeg.Interop.Native.AVFilter.outputs -> FFmpeg.Interop.Native.AVFilterPad*
+FFmpeg.Interop.Native.AVFilter.priv_class -> FFmpeg.Interop.Native.AVClass*
+FFmpeg.Interop.Native.AVFilterChain
+FFmpeg.Interop.Native.AVFilterChain.AVFilterChain() -> void
+FFmpeg.Interop.Native.AVFilterChain.filters -> FFmpeg.Interop.Native.AVFilterParams**
+FFmpeg.Interop.Native.AVFilterChain.nb_filters -> nuint
+FFmpeg.Interop.Native.AVFilterChannelLayouts
+FFmpeg.Interop.Native.AVFilterChannelLayouts.AVFilterChannelLayouts() -> void
+FFmpeg.Interop.Native.AVFilterContext
+FFmpeg.Interop.Native.AVFilterContext.AVFilterContext() -> void
+FFmpeg.Interop.Native.AVFilterContext.av_class -> FFmpeg.Interop.Native.AVClass*
+FFmpeg.Interop.Native.AVFilterContext.enable_str -> sbyte*
+FFmpeg.Interop.Native.AVFilterContext.extra_hw_frames -> int
+FFmpeg.Interop.Native.AVFilterContext.filter -> FFmpeg.Interop.Native.AVFilter*
+FFmpeg.Interop.Native.AVFilterContext.graph -> FFmpeg.Interop.Native.AVFilterGraph*
+FFmpeg.Interop.Native.AVFilterContext.hw_device_ctx -> FFmpeg.Interop.Native.AVBufferRef*
+FFmpeg.Interop.Native.AVFilterContext.input_pads -> FFmpeg.Interop.Native.AVFilterPad*
+FFmpeg.Interop.Native.AVFilterContext.inputs -> FFmpeg.Interop.Native.AVFilterLink**
+FFmpeg.Interop.Native.AVFilterContext.is_disabled -> int
+FFmpeg.Interop.Native.AVFilterContext.name -> sbyte*
+FFmpeg.Interop.Native.AVFilterContext.nb_inputs -> uint
+FFmpeg.Interop.Native.AVFilterContext.nb_outputs -> uint
+FFmpeg.Interop.Native.AVFilterContext.nb_threads -> int
+FFmpeg.Interop.Native.AVFilterContext.output_pads -> FFmpeg.Interop.Native.AVFilterPad*
+FFmpeg.Interop.Native.AVFilterContext.outputs -> FFmpeg.Interop.Native.AVFilterLink**
+FFmpeg.Interop.Native.AVFilterContext.priv -> void*
+FFmpeg.Interop.Native.AVFilterContext.thread_type -> int
+FFmpeg.Interop.Native.AVFilterFormats
+FFmpeg.Interop.Native.AVFilterFormats.AVFilterFormats() -> void
+FFmpeg.Interop.Native.AVFilterFormatsConfig
+FFmpeg.Interop.Native.AVFilterFormatsConfig.AVFilterFormatsConfig() -> void
+FFmpeg.Interop.Native.AVFilterFormatsConfig.alpha_modes -> FFmpeg.Interop.Native.AVFilterFormats*
+FFmpeg.Interop.Native.AVFilterFormatsConfig.channel_layouts -> FFmpeg.Interop.Native.AVFilterChannelLayouts*
+FFmpeg.Interop.Native.AVFilterFormatsConfig.color_ranges -> FFmpeg.Interop.Native.AVFilterFormats*
+FFmpeg.Interop.Native.AVFilterFormatsConfig.color_spaces -> FFmpeg.Interop.Native.AVFilterFormats*
+FFmpeg.Interop.Native.AVFilterFormatsConfig.formats -> FFmpeg.Interop.Native.AVFilterFormats*
+FFmpeg.Interop.Native.AVFilterFormatsConfig.samplerates -> FFmpeg.Interop.Native.AVFilterFormats*
+FFmpeg.Interop.Native.AVFilterGraph
+FFmpeg.Interop.Native.AVFilterGraph.AVFilterGraph() -> void
+FFmpeg.Interop.Native.AVFilterGraph.aresample_swr_opts -> sbyte*
+FFmpeg.Interop.Native.AVFilterGraph.av_class -> FFmpeg.Interop.Native.AVClass*
+FFmpeg.Interop.Native.AVFilterGraph.execute -> delegate* unmanaged[Cdecl]<FFmpeg.Interop.Native.AVFilterContext*, delegate* unmanaged[Cdecl]<FFmpeg.Interop.Native.AVFilterContext*, void*, int, int, int>, void*, int*, int, int>
+FFmpeg.Interop.Native.AVFilterGraph.filters -> FFmpeg.Interop.Native.AVFilterContext**
+FFmpeg.Interop.Native.AVFilterGraph.max_buffered_frames -> uint
+FFmpeg.Interop.Native.AVFilterGraph.nb_filters -> uint
+FFmpeg.Interop.Native.AVFilterGraph.nb_threads -> int
+FFmpeg.Interop.Native.AVFilterGraph.opaque -> void*
+FFmpeg.Interop.Native.AVFilterGraph.scale_sws_opts -> sbyte*
+FFmpeg.Interop.Native.AVFilterGraph.thread_type -> int
+FFmpeg.Interop.Native.AVFilterGraphSegment
+FFmpeg.Interop.Native.AVFilterGraphSegment.AVFilterGraphSegment() -> void
+FFmpeg.Interop.Native.AVFilterGraphSegment.chains -> FFmpeg.Interop.Native.AVFilterChain**
+FFmpeg.Interop.Native.AVFilterGraphSegment.graph -> FFmpeg.Interop.Native.AVFilterGraph*
+FFmpeg.Interop.Native.AVFilterGraphSegment.nb_chains -> nuint
+FFmpeg.Interop.Native.AVFilterGraphSegment.scale_sws_opts -> sbyte*
+FFmpeg.Interop.Native.AVFilterInOut
+FFmpeg.Interop.Native.AVFilterInOut.AVFilterInOut() -> void
+FFmpeg.Interop.Native.AVFilterInOut.filter_ctx -> FFmpeg.Interop.Native.AVFilterContext*
+FFmpeg.Interop.Native.AVFilterInOut.name -> sbyte*
+FFmpeg.Interop.Native.AVFilterInOut.next -> FFmpeg.Interop.Native.AVFilterInOut*
+FFmpeg.Interop.Native.AVFilterInOut.pad_idx -> int
+FFmpeg.Interop.Native.AVFilterLink
+FFmpeg.Interop.Native.AVFilterLink.AVFilterLink() -> void
+FFmpeg.Interop.Native.AVFilterLink.alpha_mode -> FFmpeg.Interop.Native.AVAlphaMode
+FFmpeg.Interop.Native.AVFilterLink.ch_layout -> FFmpeg.Interop.Native.AVChannelLayout
+FFmpeg.Interop.Native.AVFilterLink.color_range -> FFmpeg.Interop.Native.AVColorRange
+FFmpeg.Interop.Native.AVFilterLink.colorspace -> FFmpeg.Interop.Native.AVColorSpace
+FFmpeg.Interop.Native.AVFilterLink.dst -> FFmpeg.Interop.Native.AVFilterContext*
+FFmpeg.Interop.Native.AVFilterLink.dstpad -> FFmpeg.Interop.Native.AVFilterPad*
+FFmpeg.Interop.Native.AVFilterLink.format -> int
+FFmpeg.Interop.Native.AVFilterLink.h -> int
+FFmpeg.Interop.Native.AVFilterLink.incfg -> FFmpeg.Interop.Native.AVFilterFormatsConfig
+FFmpeg.Interop.Native.AVFilterLink.nb_side_data -> int
+FFmpeg.Interop.Native.AVFilterLink.outcfg -> FFmpeg.Interop.Native.AVFilterFormatsConfig
+FFmpeg.Interop.Native.AVFilterLink.sample_aspect_ratio -> FFmpeg.Interop.Native.AVRational
+FFmpeg.Interop.Native.AVFilterLink.sample_rate -> int
+FFmpeg.Interop.Native.AVFilterLink.side_data -> FFmpeg.Interop.Native.AVFrameSideData**
+FFmpeg.Interop.Native.AVFilterLink.src -> FFmpeg.Interop.Native.AVFilterContext*
+FFmpeg.Interop.Native.AVFilterLink.srcpad -> FFmpeg.Interop.Native.AVFilterPad*
+FFmpeg.Interop.Native.AVFilterLink.time_base -> FFmpeg.Interop.Native.AVRational
+FFmpeg.Interop.Native.AVFilterLink.type -> FFmpeg.Interop.Native.AVMediaType
+FFmpeg.Interop.Native.AVFilterLink.w -> int
+FFmpeg.Interop.Native.AVFilterPad
+FFmpeg.Interop.Native.AVFilterPad.AVFilterPad() -> void
+FFmpeg.Interop.Native.AVFilterPadParams
+FFmpeg.Interop.Native.AVFilterPadParams.AVFilterPadParams() -> void
+FFmpeg.Interop.Native.AVFilterPadParams.label -> sbyte*
+FFmpeg.Interop.Native.AVFilterParams
+FFmpeg.Interop.Native.AVFilterParams.AVFilterParams() -> void
+FFmpeg.Interop.Native.AVFilterParams.filter -> FFmpeg.Interop.Native.AVFilterContext*
+FFmpeg.Interop.Native.AVFilterParams.filter_name -> sbyte*
+FFmpeg.Interop.Native.AVFilterParams.inputs -> FFmpeg.Interop.Native.AVFilterPadParams**
+FFmpeg.Interop.Native.AVFilterParams.instance_name -> sbyte*
+FFmpeg.Interop.Native.AVFilterParams.nb_inputs -> uint
+FFmpeg.Interop.Native.AVFilterParams.nb_outputs -> uint
+FFmpeg.Interop.Native.AVFilterParams.opts -> FFmpeg.Interop.Native.AVDictionary*
+FFmpeg.Interop.Native.AVFilterParams.outputs -> FFmpeg.Interop.Native.AVFilterPadParams**
 FFmpeg.Interop.Native.AVFormatCommandID
 FFmpeg.Interop.Native.AVFormatCommandID.AVFORMAT_COMMAND_RTSP_SET_PARAMETER = 0 -> FFmpeg.Interop.Native.AVFormatCommandID
 FFmpeg.Interop.Native.AVFormatContext
@@ -6622,6 +6743,24 @@ const FFmpeg.Interop.Native.LibAVDevice.LIBAVDEVICE_VERSION_INT = 4129126 -> int
 const FFmpeg.Interop.Native.LibAVDevice.LIBAVDEVICE_VERSION_MAJOR = 63 -> int
 const FFmpeg.Interop.Native.LibAVDevice.LIBAVDEVICE_VERSION_MICRO = 102 -> int
 const FFmpeg.Interop.Native.LibAVDevice.LIBAVDEVICE_VERSION_MINOR = 1 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_AUTO_CONVERT_ALL = 0 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_AUTO_CONVERT_NONE = -1 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_CMD_FLAG_FAST = 2 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_CMD_FLAG_ONE = 1 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_FLAG_DYNAMIC_INPUTS = 1 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_FLAG_DYNAMIC_OUTPUTS = 2 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_FLAG_HWDEVICE = 16 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_FLAG_METADATA_ONLY = 8 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_FLAG_SLICE_THREADS = 4 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_FLAG_SUPPORT_TIMELINE = 196608 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC = 65536 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_FLAG_SUPPORT_TIMELINE_INTERNAL = 131072 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AVFILTER_THREAD_SLICE = 1 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AV_BUFFERSINK_FLAG_NO_REQUEST = 2 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AV_BUFFERSINK_FLAG_PEEK = 1 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AV_BUFFERSRC_FLAG_KEEP_REF = 8 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AV_BUFFERSRC_FLAG_NO_CHECK_FORMAT = 1 -> int
+const FFmpeg.Interop.Native.LibAVFilter.AV_BUFFERSRC_FLAG_PUSH = 4 -> int
 const FFmpeg.Interop.Native.LibAVFilter.LIBAVFILTER_VERSION_MAJOR = 12 -> int
 const FFmpeg.Interop.Native.LibAVFormat.AVFMTCTX_NOHEADER = 1 -> int
 const FFmpeg.Interop.Native.LibAVFormat.AVFMTCTX_UNSEEKABLE = 2 -> int
@@ -7489,6 +7628,72 @@ static extern FFmpeg.Interop.Native.LibAVDevice.avdevice_list_input_sources(FFmp
 static extern FFmpeg.Interop.Native.LibAVDevice.avdevice_list_output_sinks(FFmpeg.Interop.Native.AVOutputFormat* device, sbyte* device_name, FFmpeg.Interop.Native.AVDictionary* device_options, FFmpeg.Interop.Native.AVDeviceInfoList** device_list) -> int
 static extern FFmpeg.Interop.Native.LibAVDevice.avdevice_register_all() -> void
 static extern FFmpeg.Interop.Native.LibAVDevice.avdevice_version() -> uint
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_alpha_mode(FFmpeg.Interop.Native.AVFilterContext* ctx) -> FFmpeg.Interop.Native.AVAlphaMode
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_ch_layout(FFmpeg.Interop.Native.AVFilterContext* ctx, FFmpeg.Interop.Native.AVChannelLayout* ch_layout) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_channels(FFmpeg.Interop.Native.AVFilterContext* ctx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_color_range(FFmpeg.Interop.Native.AVFilterContext* ctx) -> FFmpeg.Interop.Native.AVColorRange
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_colorspace(FFmpeg.Interop.Native.AVFilterContext* ctx) -> FFmpeg.Interop.Native.AVColorSpace
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_format(FFmpeg.Interop.Native.AVFilterContext* ctx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_frame(FFmpeg.Interop.Native.AVFilterContext* ctx, FFmpeg.Interop.Native.AVFrame* frame) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_frame_flags(FFmpeg.Interop.Native.AVFilterContext* ctx, FFmpeg.Interop.Native.AVFrame* frame, int flags) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_frame_rate(FFmpeg.Interop.Native.AVFilterContext* ctx) -> FFmpeg.Interop.Native.AVRational
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_h(FFmpeg.Interop.Native.AVFilterContext* ctx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_hw_frames_ctx(FFmpeg.Interop.Native.AVFilterContext* ctx) -> FFmpeg.Interop.Native.AVBufferRef*
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_sample_aspect_ratio(FFmpeg.Interop.Native.AVFilterContext* ctx) -> FFmpeg.Interop.Native.AVRational
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_sample_rate(FFmpeg.Interop.Native.AVFilterContext* ctx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_samples(FFmpeg.Interop.Native.AVFilterContext* ctx, FFmpeg.Interop.Native.AVFrame* frame, int nb_samples) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_side_data(FFmpeg.Interop.Native.AVFilterContext* ctx, int* nb_side_data) -> FFmpeg.Interop.Native.AVFrameSideData**
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_time_base(FFmpeg.Interop.Native.AVFilterContext* ctx) -> FFmpeg.Interop.Native.AVRational
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_type(FFmpeg.Interop.Native.AVFilterContext* ctx) -> FFmpeg.Interop.Native.AVMediaType
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_get_w(FFmpeg.Interop.Native.AVFilterContext* ctx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersink_set_frame_size(FFmpeg.Interop.Native.AVFilterContext* ctx, uint frame_size) -> void
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersrc_add_frame(FFmpeg.Interop.Native.AVFilterContext* ctx, FFmpeg.Interop.Native.AVFrame* frame) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersrc_add_frame_flags(FFmpeg.Interop.Native.AVFilterContext* buffer_src, FFmpeg.Interop.Native.AVFrame* frame, int flags) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersrc_close(FFmpeg.Interop.Native.AVFilterContext* ctx, long pts, uint flags) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersrc_get_nb_failed_requests(FFmpeg.Interop.Native.AVFilterContext* buffer_src) -> uint
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersrc_get_status(FFmpeg.Interop.Native.AVFilterContext* ctx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersrc_parameters_alloc() -> FFmpeg.Interop.Native.AVBufferSrcParameters*
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersrc_parameters_set(FFmpeg.Interop.Native.AVFilterContext* ctx, FFmpeg.Interop.Native.AVBufferSrcParameters* param1) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_buffersrc_write_frame(FFmpeg.Interop.Native.AVFilterContext* ctx, FFmpeg.Interop.Native.AVFrame* frame) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.av_filter_iterate(void** opaque) -> FFmpeg.Interop.Native.AVFilter*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_configuration() -> sbyte*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_filter_pad_count(FFmpeg.Interop.Native.AVFilter* filter, int is_output) -> uint
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_free(FFmpeg.Interop.Native.AVFilterContext* filter) -> void
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_get_by_name(sbyte* name) -> FFmpeg.Interop.Native.AVFilter*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_get_class() -> FFmpeg.Interop.Native.AVClass*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_alloc() -> FFmpeg.Interop.Native.AVFilterGraph*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_alloc_filter(FFmpeg.Interop.Native.AVFilterGraph* graph, FFmpeg.Interop.Native.AVFilter* filter, sbyte* name) -> FFmpeg.Interop.Native.AVFilterContext*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_config(FFmpeg.Interop.Native.AVFilterGraph* graphctx, void* log_ctx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_create_filter(FFmpeg.Interop.Native.AVFilterContext** filt_ctx, FFmpeg.Interop.Native.AVFilter* filt, sbyte* name, sbyte* args, void* opaque, FFmpeg.Interop.Native.AVFilterGraph* graph_ctx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_dump(FFmpeg.Interop.Native.AVFilterGraph* graph, sbyte* options) -> sbyte*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_free(FFmpeg.Interop.Native.AVFilterGraph** graph) -> void
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_get_filter(FFmpeg.Interop.Native.AVFilterGraph* graph, sbyte* name) -> FFmpeg.Interop.Native.AVFilterContext*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_parse(FFmpeg.Interop.Native.AVFilterGraph* graph, sbyte* filters, FFmpeg.Interop.Native.AVFilterInOut* inputs, FFmpeg.Interop.Native.AVFilterInOut* outputs, void* log_ctx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_parse2(FFmpeg.Interop.Native.AVFilterGraph* graph, sbyte* filters, FFmpeg.Interop.Native.AVFilterInOut** inputs, FFmpeg.Interop.Native.AVFilterInOut** outputs) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_parse_ptr(FFmpeg.Interop.Native.AVFilterGraph* graph, sbyte* filters, FFmpeg.Interop.Native.AVFilterInOut** inputs, FFmpeg.Interop.Native.AVFilterInOut** outputs, void* log_ctx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_queue_command(FFmpeg.Interop.Native.AVFilterGraph* graph, sbyte* target, sbyte* cmd, sbyte* arg, int flags, double ts) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_request_oldest(FFmpeg.Interop.Native.AVFilterGraph* graph) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_segment_apply(FFmpeg.Interop.Native.AVFilterGraphSegment* seg, int flags, FFmpeg.Interop.Native.AVFilterInOut** inputs, FFmpeg.Interop.Native.AVFilterInOut** outputs) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_segment_apply_opts(FFmpeg.Interop.Native.AVFilterGraphSegment* seg, int flags) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_segment_create_filters(FFmpeg.Interop.Native.AVFilterGraphSegment* seg, int flags) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_segment_free(FFmpeg.Interop.Native.AVFilterGraphSegment** seg) -> void
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_segment_init(FFmpeg.Interop.Native.AVFilterGraphSegment* seg, int flags) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_segment_link(FFmpeg.Interop.Native.AVFilterGraphSegment* seg, int flags, FFmpeg.Interop.Native.AVFilterInOut** inputs, FFmpeg.Interop.Native.AVFilterInOut** outputs) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_segment_parse(FFmpeg.Interop.Native.AVFilterGraph* graph, sbyte* graph_str, int flags, FFmpeg.Interop.Native.AVFilterGraphSegment** seg) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_send_command(FFmpeg.Interop.Native.AVFilterGraph* graph, sbyte* target, sbyte* cmd, sbyte* arg, sbyte* res, int res_len, int flags) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_graph_set_auto_convert(FFmpeg.Interop.Native.AVFilterGraph* graph, uint flags) -> void
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_init_dict(FFmpeg.Interop.Native.AVFilterContext* ctx, FFmpeg.Interop.Native.AVDictionary** options) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_init_str(FFmpeg.Interop.Native.AVFilterContext* ctx, sbyte* args) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_inout_alloc() -> FFmpeg.Interop.Native.AVFilterInOut*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_inout_free(FFmpeg.Interop.Native.AVFilterInOut** inout) -> void
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_insert_filter(FFmpeg.Interop.Native.AVFilterLink* link, FFmpeg.Interop.Native.AVFilterContext* filt, uint filt_srcpad_idx, uint filt_dstpad_idx) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_license() -> sbyte*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_link(FFmpeg.Interop.Native.AVFilterContext* src, uint srcpad, FFmpeg.Interop.Native.AVFilterContext* dst, uint dstpad) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_link_get_hw_frames_ctx(FFmpeg.Interop.Native.AVFilterLink* link) -> FFmpeg.Interop.Native.AVBufferRef*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_pad_get_name(FFmpeg.Interop.Native.AVFilterPad* pads, int pad_idx) -> sbyte*
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_pad_get_type(FFmpeg.Interop.Native.AVFilterPad* pads, int pad_idx) -> FFmpeg.Interop.Native.AVMediaType
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_process_command(FFmpeg.Interop.Native.AVFilterContext* filter, sbyte* cmd, sbyte* arg, sbyte* res, int res_len, int flags) -> int
+static extern FFmpeg.Interop.Native.LibAVFilter.avfilter_version() -> uint
 static extern FFmpeg.Interop.Native.LibAVFormat.av_add_index_entry(FFmpeg.Interop.Native.AVStream* st, long pos, long timestamp, int size, int distance, int flags) -> int
 static extern FFmpeg.Interop.Native.LibAVFormat.av_append_packet(FFmpeg.Interop.Native.AVIOContext* s, FFmpeg.Interop.Native.AVPacket* pkt, int size) -> int
 static extern FFmpeg.Interop.Native.LibAVFormat.av_codec_get_id(FFmpeg.Interop.Native.AVCodecTag** tags, uint tag) -> FFmpeg.Interop.Native.AVCodecID
@@ -7636,6 +7841,17 @@ static extern FFmpeg.Interop.Native.LibAVUtil.av_add_q(FFmpeg.Interop.Native.AVR
 static extern FFmpeg.Interop.Native.LibAVUtil.av_add_stable(FFmpeg.Interop.Native.AVRational ts_tb, long ts, FFmpeg.Interop.Native.AVRational inc_tb, long inc) -> long
 static extern FFmpeg.Interop.Native.LibAVUtil.av_alpha_mode_from_name(sbyte* name) -> FFmpeg.Interop.Native.AVAlphaMode
 static extern FFmpeg.Interop.Native.LibAVUtil.av_alpha_mode_name(FFmpeg.Interop.Native.AVAlphaMode mode) -> sbyte*
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_alloc(FFmpeg.Interop.Native.AVSampleFormat sample_fmt, int channels, int nb_samples) -> FFmpeg.Interop.Native.AVAudioFifo*
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_drain(FFmpeg.Interop.Native.AVAudioFifo* af, int nb_samples) -> int
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_free(FFmpeg.Interop.Native.AVAudioFifo* af) -> void
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_peek(FFmpeg.Interop.Native.AVAudioFifo* af, void** data, int nb_samples) -> int
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_peek_at(FFmpeg.Interop.Native.AVAudioFifo* af, void** data, int nb_samples, int offset) -> int
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_read(FFmpeg.Interop.Native.AVAudioFifo* af, void** data, int nb_samples) -> int
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_realloc(FFmpeg.Interop.Native.AVAudioFifo* af, int nb_samples) -> int
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_reset(FFmpeg.Interop.Native.AVAudioFifo* af) -> void
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_size(FFmpeg.Interop.Native.AVAudioFifo* af) -> int
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_space(FFmpeg.Interop.Native.AVAudioFifo* af) -> int
+static extern FFmpeg.Interop.Native.LibAVUtil.av_audio_fifo_write(FFmpeg.Interop.Native.AVAudioFifo* af, void** data, int nb_samples) -> int
 static extern FFmpeg.Interop.Native.LibAVUtil.av_bessel_i0(double x) -> double
 static extern FFmpeg.Interop.Native.LibAVUtil.av_buffer_alloc(nuint size) -> FFmpeg.Interop.Native.AVBufferRef*
 static extern FFmpeg.Interop.Native.LibAVUtil.av_buffer_allocz(nuint size) -> FFmpeg.Interop.Native.AVBufferRef*
