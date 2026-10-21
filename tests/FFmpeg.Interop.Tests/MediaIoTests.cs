@@ -121,7 +121,7 @@ public sealed class MediaIoTests
         );
 
         _ = Assert.ThrowsExactly<InvalidOperationException>(() => writer.Write(packet, 0));
-        _ = Assert.ThrowsExactly<InvalidOperationException>(writer.Complete);
+        _ = Assert.ThrowsExactly<InvalidOperationException>(() => writer.Complete());
         int stream = writer.AddStream(encoder);
         writer.WriteHeader();
         _ = Assert.ThrowsExactly<InvalidOperationException>(() => writer.AddStream(encoder));

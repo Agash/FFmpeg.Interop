@@ -58,6 +58,12 @@ public readonly record struct Rational(int Numerator, int Denominator)
     public TimeSpan ToTimeSpan(long value) =>
         TimeSpan.FromTicks(Rescale(value, this, new(1, (int)TimeSpan.TicksPerSecond)));
 
+    /// <summary>A <see cref="TimeSpan"/> as a timestamp in this time base, rounded to the nearest.</summary>
+    /// <param name="value">The duration.</param>
+    /// <returns>The timestamp.</returns>
+    public long FromTimeSpan(TimeSpan value) =>
+        Rescale(value.Ticks, new(1, (int)TimeSpan.TicksPerSecond), this);
+
     /// <inheritdoc/>
     public override string ToString() =>
         string.Create(CultureInfo.InvariantCulture, $"{Numerator}/{Denominator}");

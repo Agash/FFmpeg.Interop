@@ -975,6 +975,7 @@ public sealed class HardwareCodecTests
     [TestCategory("RequiresQsv")]
     public void Qsv_SetRateControl_ChangesTheRateOfTheFollowingFrames()
     {
+        RequireAdapter(GpuVendor.Intel);
         using HardwareDevice device = HardwareDevice.CreateForAdapter(
             HardwareDeviceType.Qsv,
             Adapter(GpuVendor.Intel)

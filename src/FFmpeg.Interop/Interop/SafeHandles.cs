@@ -246,11 +246,15 @@ internal sealed unsafe class SafeOutputFormatHandle()
         return owner;
     }
 
-    // The muxer opened the I/O context itself unless the format has no file; closing it is ours.
+    // The muxer opened the I/O context itself unless the format has no file or the caller supplied one
+    // (AVFMT_FLAG_CUSTOM_IO, freed by its owner); closing it is ours.
     protected override bool ReleaseHandle()
     {
         AVFormatContext* context = (AVFormatContext*)handle;
-        if ((context->oformat->flags & LibAVFormat.AVFMT_NOFILE) == 0)
+        if (
+            (context->oformat->flags & LibAVFormat.AVFMT_NOFILE) == 0
+            && (context->flags & LibAVFormat.AVFMT_FLAG_CUSTOM_IO) == 0
+        )
         {
             _ = LibAVFormat.avio_closep(&context->pb);
         }

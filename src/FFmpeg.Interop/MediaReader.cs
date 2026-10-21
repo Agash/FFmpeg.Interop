@@ -9,10 +9,14 @@ namespace FFmpeg.Interop;
 public sealed unsafe class MediaReader : IDisposable
 {
     private readonly SafeInputFormatHandle _handle;
+    private readonly Interruption _interruption;
+    private readonly StreamIO? _io;
 
-    private MediaReader(SafeInputFormatHandle handle)
+    private MediaReader(SafeInputFormatHandle handle, Interruption interruption, StreamIO? io)
     {
         _handle = handle;
+        _interruption = interruption;
+        _io = io;
         AVFormatContext* context = handle.Pointer;
         MediaStream[] streams = new MediaStream[context->nb_streams];
         for (int i = 0; i < streams.Length; i++)
@@ -21,7 +25,31 @@ public sealed unsafe class MediaReader : IDisposable
         }
 
         Streams = ImmutableCollectionsMarshal.AsImmutableArray(streams);
+        Metadata = NativeMetadata.Read(context->metadata);
+        ImmutableArray<Chapter>.Builder chapters = ImmutableArray.CreateBuilder<Chapter>(
+            (int)context->nb_chapters
+        );
+        for (int i = 0; i < context->nb_chapters; i++)
+        {
+            AVChapter* chapter = context->chapters[i];
+            Rational timeBase = chapter->time_base;
+            chapters.Add(
+                new Chapter(
+                    timeBase.ToTimeSpan(chapter->start),
+                    timeBase.ToTimeSpan(chapter->end),
+                    NativeMetadata.Read(chapter->metadata)
+                )
+            );
+        }
+
+        Chapters = chapters.MoveToImmutable();
     }
+
+    /// <summary>The container's tags, such as <c>title</c> or <c>encoder</c>.</summary>
+    public ImmutableDictionary<string, string> Metadata { get; }
+
+    /// <summary>The input's chapters, in order.</summary>
+    public ImmutableArray<Chapter> Chapters { get; }
 
     /// <summary>The native context, owned by this instance and invalid after <see cref="Dispose"/>.</summary>
     public AVFormatContext* NativePointer
@@ -49,23 +77,80 @@ public sealed unsafe class MediaReader : IDisposable
     /// The input format's short name (<c>matroska</c>, <c>h264</c>, <c>lavfi</c>), or null to probe for
     /// it. Needed for inputs that carry no signature of their own, such as raw elementary streams.
     /// </param>
+    /// <param name="cancellationToken">Ends the open, which can block on a network input.</param>
     /// <returns>The reader.</returns>
+    /// <exception cref="OperationCanceledException">The open was cancelled.</exception>
     public static MediaReader Open(
         string url,
         IReadOnlyDictionary<string, string>? options = null,
-        string? format = null
+        string? format = null,
+        CancellationToken cancellationToken = default
     )
     {
         ArgumentNullException.ThrowIfNull(url);
+        return OpenCore(url, null, options, format, cancellationToken);
+    }
+
+    /// <summary>
+    /// Opens a stream and reads enough of it to describe its streams: a demuxer over any readable
+    /// <see cref="Stream"/>, seeking where the stream can. The stream stays the caller's.
+    /// </summary>
+    /// <param name="stream">The input, readable; read from its current position.</param>
+    /// <param name="options">Demuxer options. Unknown names are an error.</param>
+    /// <param name="format">The input format's short name, or null to probe for it.</param>
+    /// <param name="cancellationToken">Ends the open.</param>
+    /// <returns>The reader.</returns>
+    /// <exception cref="OperationCanceledException">The open was cancelled.</exception>
+    public static MediaReader OpenStream(
+        Stream stream,
+        IReadOnlyDictionary<string, string>? options = null,
+        string? format = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        return OpenCore(null, stream, options, format, cancellationToken);
+    }
+
+    private static MediaReader OpenCore(
+        string? url,
+        Stream? stream,
+        IReadOnlyDictionary<string, string>? options,
+        string? format,
+        CancellationToken cancellationToken
+    )
+    {
         AVInputFormat* inputFormat = format is null ? null : FindInputFormat(format);
-        AVFormatContext* context = null;
+        Interruption interruption = new();
+        StreamIO? io = null;
         AVDictionary* dictionary = NativeOptions.Create(options);
         try
         {
-            using (Utf8String native = new(url))
+            // Allocated here rather than by avformat_open_input, so the interrupt callback and a stream's
+            // I/O context are in place before anything blocks.
+            AVFormatContext* context = avformat_alloc_context();
+            if (context is null)
+            {
+                FFmpegError.ThrowOutOfMemory("avformat_alloc_context");
+            }
+
+            context->interrupt_callback = interruption.Callback;
+            if (stream is not null)
+            {
+                io = new StreamIO(stream, write: false);
+                context->pb = io.Context;
+                context->flags |= AVFMT_FLAG_CUSTOM_IO;
+            }
+
+            // avformat_open_input frees the context when it fails.
+            using (interruption.During(cancellationToken))
+            using (Utf8String native = new(url ?? string.Empty))
             {
                 FFmpegError.ThrowIfError(
-                    avformat_open_input(&context, native, inputFormat, &dictionary)
+                    interruption.Checked(
+                        avformat_open_input(&context, native, inputFormat, &dictionary)
+                    ),
+                    "avformat_open_input"
                 );
             }
 
@@ -73,14 +158,27 @@ public sealed unsafe class MediaReader : IDisposable
             try
             {
                 NativeOptions.ThrowIfUnused(dictionary, "The demuxer");
-                FFmpegError.ThrowIfError(avformat_find_stream_info(context, null));
-                return new MediaReader(handle);
+                using (interruption.During(cancellationToken))
+                {
+                    FFmpegError.ThrowIfError(
+                        interruption.Checked(avformat_find_stream_info(context, null)),
+                        "avformat_find_stream_info"
+                    );
+                }
+
+                return new MediaReader(handle, interruption, io);
             }
             catch
             {
                 handle.Dispose();
                 throw;
             }
+        }
+        catch
+        {
+            io?.Dispose();
+            interruption.Dispose();
+            throw;
         }
         finally
         {
@@ -189,15 +287,22 @@ public sealed unsafe class MediaReader : IDisposable
 
     /// <summary>Reads the next packet of any stream.</summary>
     /// <param name="packet">The packet to fill, with its time base set to its stream's.</param>
+    /// <param name="cancellationToken">Ends a read that blocks on a network input.</param>
     /// <returns>False at end of input.</returns>
-    public bool TryReadPacket(Packet packet)
+    /// <exception cref="OperationCanceledException">The read was cancelled.</exception>
+    public bool TryReadPacket(Packet packet, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(packet);
         AVPacket* native = packet.NativePointer;
 
         // av_read_frame fills a blank packet; it does not release what a reused one still holds.
         LibAVCodec.av_packet_unref(native);
-        int result = av_read_frame(NativePointer, native);
+        int result;
+        using (_interruption.During(cancellationToken))
+        {
+            result = _interruption.Checked(av_read_frame(NativePointer, native));
+        }
+
         if (result == LibAVUtil.AVERROR_EOF)
         {
             return false;
@@ -208,8 +313,48 @@ public sealed unsafe class MediaReader : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Moves to the keyframe at or before a position, so decoding from there shows the picture at the
+    /// position once frames before it are dropped. Decoders reading the input are flushed by the caller.
+    /// </summary>
+    /// <param name="position">Where to go, from the start of the input.</param>
+    /// <param name="stream">The stream whose keyframes count; null for the input's default.</param>
+    /// <param name="cancellationToken">Ends a seek that blocks on a network input.</param>
+    /// <exception cref="OperationCanceledException">The seek was cancelled.</exception>
+    public void Seek(
+        TimeSpan position,
+        MediaStream? stream = null,
+        CancellationToken cancellationToken = default
+    )
+    {
+        // avformat_seek_file takes a range: anything up to the position, the position preferred.
+        Rational timeBase = stream?.TimeBase ?? Rational.Microseconds;
+        long target = timeBase.FromTimeSpan(position);
+        using (_interruption.During(cancellationToken))
+        {
+            FFmpegError.ThrowIfError(
+                _interruption.Checked(
+                    avformat_seek_file(
+                        NativePointer,
+                        stream?.Index ?? -1,
+                        long.MinValue,
+                        target,
+                        target,
+                        0
+                    )
+                ),
+                "avformat_seek_file"
+            );
+        }
+    }
+
     /// <inheritdoc/>
-    public void Dispose() => _handle.Dispose();
+    public void Dispose()
+    {
+        _handle.Dispose();
+        _io?.Dispose();
+        _interruption.Dispose();
+    }
 }
 
 /// <summary>One stream of a <see cref="MediaReader"/>; valid while the reader is open.</summary>
@@ -257,6 +402,16 @@ public sealed unsafe class MediaStream
 
     /// <summary>The sample rate, for audio.</summary>
     public int SampleRate => NativePointer->codecpar->sample_rate;
+
+    /// <summary>The stream's tags, such as <c>language</c> or <c>title</c>.</summary>
+    public ImmutableDictionary<string, string> Metadata =>
+        NativeMetadata.Read(NativePointer->metadata);
+
+    /// <summary>How the stream is meant to be used.</summary>
+    public StreamDisposition Disposition => (StreamDisposition)NativePointer->disposition;
+
+    /// <summary>The codec parameters, for a writer copying the stream as it is.</summary>
+    public AVCodecParameters* CodecParameters => NativePointer->codecpar;
 
     /// <summary>The codec setup data the container holds for the stream.</summary>
     public ReadOnlySpan<byte> ExtraData =>

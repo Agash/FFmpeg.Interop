@@ -27,6 +27,18 @@ FFmpeg.Interop.ChannelLayout.ChannelLayout() -> void
 FFmpeg.Interop.ChannelLayout.Equals(FFmpeg.Interop.ChannelLayout other) -> bool
 FFmpeg.Interop.ChannelLayout.IsNativeOrder.get -> bool
 FFmpeg.Interop.ChannelLayout.Mask.get -> ulong
+FFmpeg.Interop.Chapter
+FFmpeg.Interop.Chapter.<Clone>$() -> FFmpeg.Interop.Chapter!
+FFmpeg.Interop.Chapter.Chapter(System.TimeSpan Start, System.TimeSpan End, System.Collections.Immutable.ImmutableDictionary<string!, string!>! Metadata) -> void
+FFmpeg.Interop.Chapter.Deconstruct(out System.TimeSpan Start, out System.TimeSpan End, out System.Collections.Immutable.ImmutableDictionary<string!, string!>! Metadata) -> void
+FFmpeg.Interop.Chapter.End.get -> System.TimeSpan
+FFmpeg.Interop.Chapter.End.init -> void
+FFmpeg.Interop.Chapter.Equals(FFmpeg.Interop.Chapter? other) -> bool
+FFmpeg.Interop.Chapter.Metadata.get -> System.Collections.Immutable.ImmutableDictionary<string!, string!>!
+FFmpeg.Interop.Chapter.Metadata.init -> void
+FFmpeg.Interop.Chapter.Start.get -> System.TimeSpan
+FFmpeg.Interop.Chapter.Start.init -> void
+FFmpeg.Interop.Chapter.Title.get -> string?
 FFmpeg.Interop.ChromaLocation
 FFmpeg.Interop.ChromaLocation.Bottom = 6 -> FFmpeg.Interop.ChromaLocation
 FFmpeg.Interop.ChromaLocation.BottomLeft = 5 -> FFmpeg.Interop.ChromaLocation
@@ -532,20 +544,26 @@ FFmpeg.Interop.ImagePlane.ImagePlane() -> void
 FFmpeg.Interop.ImagePlane.RowLength.get -> int
 FFmpeg.Interop.ImagePlane.Stride.get -> int
 FFmpeg.Interop.MediaReader
+FFmpeg.Interop.MediaReader.Chapters.get -> System.Collections.Immutable.ImmutableArray<FFmpeg.Interop.Chapter!>
 FFmpeg.Interop.MediaReader.Dispose() -> void
 FFmpeg.Interop.MediaReader.Duration.get -> System.TimeSpan?
 FFmpeg.Interop.MediaReader.FindBestStream(FFmpeg.Interop.MediaType type) -> FFmpeg.Interop.MediaStream?
+FFmpeg.Interop.MediaReader.Metadata.get -> System.Collections.Immutable.ImmutableDictionary<string!, string!>!
 FFmpeg.Interop.MediaReader.NativePointer.get -> FFmpeg.Interop.Native.AVFormatContext*
+FFmpeg.Interop.MediaReader.Seek(System.TimeSpan position, FFmpeg.Interop.MediaStream? stream = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 FFmpeg.Interop.MediaReader.Streams.get -> System.Collections.Immutable.ImmutableArray<FFmpeg.Interop.MediaStream!>
-FFmpeg.Interop.MediaReader.TryReadPacket(FFmpeg.Interop.Packet! packet) -> bool
+FFmpeg.Interop.MediaReader.TryReadPacket(FFmpeg.Interop.Packet! packet, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> bool
 FFmpeg.Interop.MediaStream
 FFmpeg.Interop.MediaStream.CodecId.get -> FFmpeg.Interop.CodecId
+FFmpeg.Interop.MediaStream.CodecParameters.get -> FFmpeg.Interop.Native.AVCodecParameters*
 FFmpeg.Interop.MediaStream.CreateDecoder(FFmpeg.Interop.Codec? codec = null, FFmpeg.Interop.DecoderOptions? options = null) -> FFmpeg.Interop.Decoder!
+FFmpeg.Interop.MediaStream.Disposition.get -> FFmpeg.Interop.StreamDisposition
 FFmpeg.Interop.MediaStream.ExtraData.get -> System.ReadOnlySpan<byte>
 FFmpeg.Interop.MediaStream.FrameRate.get -> FFmpeg.Interop.Rational
 FFmpeg.Interop.MediaStream.Height.get -> int
 FFmpeg.Interop.MediaStream.Index.get -> int
 FFmpeg.Interop.MediaStream.MediaType.get -> FFmpeg.Interop.MediaType
+FFmpeg.Interop.MediaStream.Metadata.get -> System.Collections.Immutable.ImmutableDictionary<string!, string!>!
 FFmpeg.Interop.MediaStream.NativePointer.get -> FFmpeg.Interop.Native.AVStream*
 FFmpeg.Interop.MediaStream.SampleRate.get -> int
 FFmpeg.Interop.MediaStream.TimeBase.get -> FFmpeg.Interop.Rational
@@ -559,12 +577,13 @@ FFmpeg.Interop.MediaType.Unknown = -1 -> FFmpeg.Interop.MediaType
 FFmpeg.Interop.MediaType.Video = 0 -> FFmpeg.Interop.MediaType
 FFmpeg.Interop.MediaWriter
 FFmpeg.Interop.MediaWriter.AddStream(FFmpeg.Interop.Encoder! encoder) -> int
-FFmpeg.Interop.MediaWriter.Complete() -> void
+FFmpeg.Interop.MediaWriter.AddStream(FFmpeg.Interop.MediaStream! source) -> int
+FFmpeg.Interop.MediaWriter.Complete(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 FFmpeg.Interop.MediaWriter.Dispose() -> void
 FFmpeg.Interop.MediaWriter.NativePointer.get -> FFmpeg.Interop.Native.AVFormatContext*
 FFmpeg.Interop.MediaWriter.RequiresGlobalHeader.get -> bool
-FFmpeg.Interop.MediaWriter.Write(FFmpeg.Interop.Packet! packet, int streamIndex) -> void
-FFmpeg.Interop.MediaWriter.WriteHeader(System.Collections.Generic.IReadOnlyDictionary<string!, string!>? options = null) -> void
+FFmpeg.Interop.MediaWriter.Write(FFmpeg.Interop.Packet! packet, int streamIndex, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
+FFmpeg.Interop.MediaWriter.WriteHeader(System.Collections.Generic.IReadOnlyDictionary<string!, string!>? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 FFmpeg.Interop.Native.AVActiveFormatDescription
 FFmpeg.Interop.Native.AVActiveFormatDescription.AV_AFD_14_9 = 11 -> FFmpeg.Interop.Native.AVActiveFormatDescription
 FFmpeg.Interop.Native.AVActiveFormatDescription.AV_AFD_16_9 = 10 -> FFmpeg.Interop.Native.AVActiveFormatDescription
@@ -6100,6 +6119,7 @@ FFmpeg.Interop.Rational.Deconstruct(out int Numerator, out int Denominator) -> v
 FFmpeg.Interop.Rational.Denominator.get -> int
 FFmpeg.Interop.Rational.Denominator.init -> void
 FFmpeg.Interop.Rational.Equals(FFmpeg.Interop.Rational other) -> bool
+FFmpeg.Interop.Rational.FromTimeSpan(System.TimeSpan value) -> long
 FFmpeg.Interop.Rational.Invert() -> FFmpeg.Interop.Rational
 FFmpeg.Interop.Rational.IsEquivalentTo(FFmpeg.Interop.Rational other) -> bool
 FFmpeg.Interop.Rational.Numerator.get -> int
@@ -6172,6 +6192,27 @@ FFmpeg.Interop.ScalerOptions.FullChromaInterpolation.init -> void
 FFmpeg.Interop.ScalerOptions.ScalerOptions() -> void
 FFmpeg.Interop.ScalerOptions.ThreadCount.get -> int
 FFmpeg.Interop.ScalerOptions.ThreadCount.init -> void
+FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.AttachedPicture = 1024 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Captions = 65536 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.CleanEffects = 512 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Comment = 8 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Default = 1 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Dependent = 524288 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Descriptions = 131072 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Dub = 2 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Forced = 64 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.HearingImpaired = 128 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Karaoke = 32 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Lyrics = 16 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Metadata = 262144 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Multilayer = 2097152 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.NonDiegetic = 4096 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.None = 0 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.Original = 4 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.StillImage = 1048576 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.TimedThumbnails = 2048 -> FFmpeg.Interop.StreamDisposition
+FFmpeg.Interop.StreamDisposition.VisualImpaired = 256 -> FFmpeg.Interop.StreamDisposition
 FFmpeg.Interop.VaapiExtensions
 FFmpeg.Interop.VaapiExtensions.extension(FFmpeg.Interop.Frame!)
 FFmpeg.Interop.VaapiExtensions.extension(FFmpeg.Interop.Frame!).TryGetVaapiSurface(out uint surfaceId) -> bool
@@ -7046,6 +7087,9 @@ override FFmpeg.Interop.CaptureDevice.GetHashCode() -> int
 override FFmpeg.Interop.CaptureDevice.ToString() -> string!
 override FFmpeg.Interop.ChannelLayout.GetHashCode() -> int
 override FFmpeg.Interop.ChannelLayout.ToString() -> string!
+override FFmpeg.Interop.Chapter.Equals(object? obj) -> bool
+override FFmpeg.Interop.Chapter.GetHashCode() -> int
+override FFmpeg.Interop.Chapter.ToString() -> string!
 override FFmpeg.Interop.Codec.Equals(object? obj) -> bool
 override FFmpeg.Interop.Codec.GetHashCode() -> int
 override FFmpeg.Interop.Codec.ToString() -> string!
@@ -7105,6 +7149,8 @@ static FFmpeg.Interop.ChannelLayout.Mono.get -> FFmpeg.Interop.ChannelLayout
 static FFmpeg.Interop.ChannelLayout.Stereo.get -> FFmpeg.Interop.ChannelLayout
 static FFmpeg.Interop.ChannelLayout.operator !=(FFmpeg.Interop.ChannelLayout left, FFmpeg.Interop.ChannelLayout right) -> bool
 static FFmpeg.Interop.ChannelLayout.operator ==(FFmpeg.Interop.ChannelLayout left, FFmpeg.Interop.ChannelLayout right) -> bool
+static FFmpeg.Interop.Chapter.operator !=(FFmpeg.Interop.Chapter? left, FFmpeg.Interop.Chapter? right) -> bool
+static FFmpeg.Interop.Chapter.operator ==(FFmpeg.Interop.Chapter? left, FFmpeg.Interop.Chapter? right) -> bool
 static FFmpeg.Interop.Codec.All.get -> System.Collections.Generic.IEnumerable<FFmpeg.Interop.Codec>!
 static FFmpeg.Interop.Codec.FindDecoder(FFmpeg.Interop.CodecId id) -> FFmpeg.Interop.Codec
 static FFmpeg.Interop.Codec.FindDecoder(FFmpeg.Interop.CodecId id, FFmpeg.Interop.HardwareDeviceType deviceType) -> FFmpeg.Interop.Codec
@@ -7225,9 +7271,11 @@ static FFmpeg.Interop.HardwareFramePool.Create(FFmpeg.Interop.HardwareDevice! de
 static FFmpeg.Interop.HardwareFramePool.Of(FFmpeg.Interop.Frame! frame) -> FFmpeg.Interop.HardwareFramePool!
 static FFmpeg.Interop.ImagePlane.implicit operator FFmpeg.Interop.ReadOnlyImagePlane(FFmpeg.Interop.ImagePlane plane) -> FFmpeg.Interop.ReadOnlyImagePlane
 static FFmpeg.Interop.MediaReader.ListDevices(string! format) -> System.Collections.Immutable.ImmutableArray<FFmpeg.Interop.CaptureDevice!>
-static FFmpeg.Interop.MediaReader.Open(string! url, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? options = null, string? format = null) -> FFmpeg.Interop.MediaReader!
+static FFmpeg.Interop.MediaReader.Open(string! url, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? options = null, string? format = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> FFmpeg.Interop.MediaReader!
 static FFmpeg.Interop.MediaReader.OpenDevice(string! format, string! device, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? options = null) -> FFmpeg.Interop.MediaReader!
+static FFmpeg.Interop.MediaReader.OpenStream(System.IO.Stream! stream, System.Collections.Generic.IReadOnlyDictionary<string!, string!>? options = null, string? format = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> FFmpeg.Interop.MediaReader!
 static FFmpeg.Interop.MediaWriter.Create(string! url, string? format = null) -> FFmpeg.Interop.MediaWriter!
+static FFmpeg.Interop.MediaWriter.CreateStream(System.IO.Stream! stream, string! format) -> FFmpeg.Interop.MediaWriter!
 static FFmpeg.Interop.Native.Errno.EAGAIN.get -> int
 static FFmpeg.Interop.Native.Errno.ENOSYS.get -> int
 static FFmpeg.Interop.Native.LibAVCodec.LIBAVCODEC_IDENT.get -> System.ReadOnlySpan<byte>
