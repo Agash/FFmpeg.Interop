@@ -618,6 +618,9 @@ FFmpeg.Interop.MediaWriter.Complete(System.Threading.CancellationToken cancellat
 FFmpeg.Interop.MediaWriter.Dispose() -> void
 FFmpeg.Interop.MediaWriter.NativePointer.get -> FFmpeg.Interop.Native.AVFormatContext*
 FFmpeg.Interop.MediaWriter.RequiresGlobalHeader.get -> bool
+FFmpeg.Interop.MediaWriter.SetDisposition(int streamIndex, FFmpeg.Interop.StreamDisposition disposition) -> void
+FFmpeg.Interop.MediaWriter.SetMetadata(int streamIndex, string! key, string? value) -> void
+FFmpeg.Interop.MediaWriter.SetMetadata(string! key, string? value) -> void
 FFmpeg.Interop.MediaWriter.Write(FFmpeg.Interop.Packet! packet, int streamIndex, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 FFmpeg.Interop.MediaWriter.WriteHeader(System.Collections.Generic.IReadOnlyDictionary<string!, string!>? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> void
 FFmpeg.Interop.Native.AVActiveFormatDescription
@@ -7371,6 +7374,7 @@ static FFmpeg.Interop.CodecId.Hevc.get -> FFmpeg.Interop.CodecId
 static FFmpeg.Interop.CodecId.None.get -> FFmpeg.Interop.CodecId
 static FFmpeg.Interop.CodecId.Opus.get -> FFmpeg.Interop.CodecId
 static FFmpeg.Interop.CodecId.PcmS16LE.get -> FFmpeg.Interop.CodecId
+static FFmpeg.Interop.CodecId.Png.get -> FFmpeg.Interop.CodecId
 static FFmpeg.Interop.CodecId.Vp8.get -> FFmpeg.Interop.CodecId
 static FFmpeg.Interop.CodecId.Vp9.get -> FFmpeg.Interop.CodecId
 static FFmpeg.Interop.CodecId.implicit operator FFmpeg.Interop.CodecId(FFmpeg.Interop.Native.AVCodecID value) -> FFmpeg.Interop.CodecId

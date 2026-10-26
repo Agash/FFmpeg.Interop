@@ -103,6 +103,43 @@ public sealed class ContainerTests
     }
 
     [TestMethod]
+    public async Task StreamCopy_KeepsStreamTags_AndWritesTheOnesSet()
+    {
+        TestNatives.Require();
+        string path = await TaggedClipAsync();
+
+        using MemoryStream copy = new();
+        using (MediaReader reader = MediaReader.Open(path))
+        {
+            using MediaWriter writer = MediaWriter.CreateStream(copy, "matroska");
+            int stream = writer.AddStream(reader.Streams[0]);
+            writer.SetMetadata("title", "Copied");
+            writer.SetMetadata(stream, "comment", "set by the writer");
+            writer.WriteHeader();
+            using Packet packet = new();
+            while (reader.TryReadPacket(packet))
+            {
+                writer.Write(packet, stream);
+            }
+
+            writer.Complete();
+            _ = Assert.ThrowsExactly<InvalidOperationException>(
+                () => writer.SetMetadata("title", "late"),
+                "tags go out with the header"
+            );
+        }
+
+        copy.Position = 0;
+        using MediaReader again = MediaReader.OpenStream(copy);
+        MediaStream video = again.Streams.Single();
+
+        Assert.AreEqual("Copied", again.Metadata["title"]);
+        Assert.AreEqual("eng", video.Metadata["language"], "the source stream's tag came along");
+        Assert.AreEqual("set by the writer", video.Metadata["comment"]);
+        Assert.IsTrue(video.Disposition.HasFlag(StreamDisposition.Default));
+    }
+
+    [TestMethod]
     public void MediaReader_Open_BlockedInput_IsCancelled()
     {
         TestNatives.Require();

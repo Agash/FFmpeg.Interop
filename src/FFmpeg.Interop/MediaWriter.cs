@@ -146,7 +146,72 @@ public sealed unsafe class MediaWriter : IDisposable
         // The tag names the codec in the source's container; the muxer picks its own.
         stream->codecpar->codec_tag = 0;
         stream->time_base = source.TimeBase;
+
+        // A copy keeps what the stream says about itself, its tags (language, title) and disposition, as
+        // ffmpeg's stream copy does by default.
+        FFmpegError.ThrowIfError(
+            LibAVUtil.av_dict_copy(&stream->metadata, source.NativePointer->metadata, 0),
+            "av_dict_copy"
+        );
+        stream->disposition = source.NativePointer->disposition;
         return stream->index;
+    }
+
+    /// <summary>
+    /// Sets a container tag, such as <c>title</c> or <c>encoder</c>, or removes it with a null value. Tags
+    /// are written with the header, so they are set before <see cref="WriteHeader"/>.
+    /// </summary>
+    /// <param name="key">The tag's name, as the muxer names it.</param>
+    /// <param name="value">Its value; null removes the tag.</param>
+    public void SetMetadata(string key, string? value) =>
+        SetMetadata(&NativePointer->metadata, key, value);
+
+    /// <summary>Sets a stream's tag, such as <c>language</c> or <c>title</c>, or removes it with a null value.</summary>
+    /// <param name="streamIndex">The stream, as <see cref="AddStream(MediaStream)"/> returned it.</param>
+    /// <param name="key">The tag's name.</param>
+    /// <param name="value">Its value; null removes the tag.</param>
+    public void SetMetadata(int streamIndex, string key, string? value) =>
+        SetMetadata(&Stream(streamIndex)->metadata, key, value);
+
+    /// <summary>Sets a stream's disposition: default, forced, hearing impaired and the rest.</summary>
+    /// <param name="streamIndex">The stream.</param>
+    /// <param name="disposition">The flags.</param>
+    public void SetDisposition(int streamIndex, StreamDisposition disposition)
+    {
+        ThrowIfHeaderWritten();
+        Stream(streamIndex)->disposition = (int)disposition;
+    }
+
+    private void SetMetadata(AVDictionary** dictionary, string key, string? value)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(key);
+        ThrowIfHeaderWritten();
+        using Utf8String nativeKey = new(key);
+        using Utf8String nativeValue = new(value);
+        FFmpegError.ThrowIfError(
+            LibAVUtil.av_dict_set(dictionary, nativeKey, nativeValue, 0),
+            "av_dict_set"
+        );
+    }
+
+    private AVStream* Stream(int index)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(
+            (uint)index,
+            NativePointer->nb_streams,
+            nameof(index)
+        );
+        return NativePointer->streams[index];
+    }
+
+    private void ThrowIfHeaderWritten()
+    {
+        if (_headerWritten)
+        {
+            throw new InvalidOperationException(
+                "Tags are written with the header; set them before it."
+            );
+        }
     }
 
     /// <summary>Opens the output and writes the container header.</summary>

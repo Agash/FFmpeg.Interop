@@ -25,6 +25,9 @@ public readonly record struct CodecId(AVCodecID Value)
     /// <summary>VP9.</summary>
     public static CodecId Vp9 => new(AV_CODEC_ID_VP9);
 
+    /// <summary>PNG, for still pictures and thumbnails.</summary>
+    public static CodecId Png => new(AV_CODEC_ID_PNG);
+
     /// <summary>Opus.</summary>
     public static CodecId Opus => new(AV_CODEC_ID_OPUS);
 
