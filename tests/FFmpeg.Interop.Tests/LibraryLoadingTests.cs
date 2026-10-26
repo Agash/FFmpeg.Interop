@@ -60,7 +60,16 @@ public sealed class LibraryLoadingTests
     public void Libraries_ListsEveryBoundLibraryWithItsMajor()
     {
         CollectionAssert.AreEqual(
-            new[] { "avutil", "avcodec", "avformat", "avdevice", "swscale", "swresample" },
+            new[]
+            {
+                "avutil",
+                "avcodec",
+                "avformat",
+                "avfilter",
+                "avdevice",
+                "swscale",
+                "swresample",
+            },
             FFmpegLibraries.Libraries.Select(l => l.Name).ToArray()
         );
         Assert.AreEqual(63, FFmpegLibraries.Libraries.Single(l => l.Name == "avcodec").Major);

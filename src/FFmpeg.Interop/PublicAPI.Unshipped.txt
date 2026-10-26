@@ -10,6 +10,34 @@ FFmpeg.Interop.AudioEncoderOptions.SampleRate.get -> int
 FFmpeg.Interop.AudioEncoderOptions.SampleRate.init -> void
 FFmpeg.Interop.AudioEncoderOptions.TimeBase.get -> FFmpeg.Interop.Rational?
 FFmpeg.Interop.AudioEncoderOptions.TimeBase.init -> void
+FFmpeg.Interop.AudioFifo
+FFmpeg.Interop.AudioFifo.AudioFifo(FFmpeg.Interop.SampleFormat format, FFmpeg.Interop.ChannelLayout layout, int sampleRate, int capacity = 4096) -> void
+FFmpeg.Interop.AudioFifo.Clear() -> void
+FFmpeg.Interop.AudioFifo.Count.get -> int
+FFmpeg.Interop.AudioFifo.Dispose() -> void
+FFmpeg.Interop.AudioFifo.TryRead(FFmpeg.Interop.Frame! frame, int samples) -> bool
+FFmpeg.Interop.AudioFifo.Write(FFmpeg.Interop.Frame! frame) -> void
+FFmpeg.Interop.AudioFilterInput
+FFmpeg.Interop.AudioFilterInput.<Clone>$() -> FFmpeg.Interop.AudioFilterInput!
+FFmpeg.Interop.AudioFilterInput.AudioFilterInput(int SampleRate, FFmpeg.Interop.SampleFormat SampleFormat, FFmpeg.Interop.ChannelLayout ChannelLayout) -> void
+FFmpeg.Interop.AudioFilterInput.ChannelLayout.get -> FFmpeg.Interop.ChannelLayout
+FFmpeg.Interop.AudioFilterInput.ChannelLayout.init -> void
+FFmpeg.Interop.AudioFilterInput.Deconstruct(out int SampleRate, out FFmpeg.Interop.SampleFormat SampleFormat, out FFmpeg.Interop.ChannelLayout ChannelLayout) -> void
+FFmpeg.Interop.AudioFilterInput.Equals(FFmpeg.Interop.AudioFilterInput? other) -> bool
+FFmpeg.Interop.AudioFilterInput.SampleFormat.get -> FFmpeg.Interop.SampleFormat
+FFmpeg.Interop.AudioFilterInput.SampleFormat.init -> void
+FFmpeg.Interop.AudioFilterInput.SampleRate.get -> int
+FFmpeg.Interop.AudioFilterInput.SampleRate.init -> void
+FFmpeg.Interop.AudioFilterInput.TimeBase.get -> FFmpeg.Interop.Rational?
+FFmpeg.Interop.AudioFilterInput.TimeBase.init -> void
+FFmpeg.Interop.BitstreamFilter
+FFmpeg.Interop.BitstreamFilter.Dispose() -> void
+FFmpeg.Interop.BitstreamFilter.NativePointer.get -> FFmpeg.Interop.Native.AVBSFContext*
+FFmpeg.Interop.BitstreamFilter.OutputParameters.get -> FFmpeg.Interop.Native.AVCodecParameters*
+FFmpeg.Interop.BitstreamFilter.OutputTimeBase.get -> FFmpeg.Interop.Rational
+FFmpeg.Interop.BitstreamFilter.Receive(FFmpeg.Interop.Packet! packet) -> FFmpeg.Interop.CodecStatus
+FFmpeg.Interop.BitstreamFilter.SendEndOfStream() -> void
+FFmpeg.Interop.BitstreamFilter.TrySend(FFmpeg.Interop.Packet! packet) -> bool
 FFmpeg.Interop.CaptureDevice
 FFmpeg.Interop.CaptureDevice.<Clone>$() -> FFmpeg.Interop.CaptureDevice!
 FFmpeg.Interop.CaptureDevice.CaptureDevice(string! Name, string! Description, System.Collections.Immutable.ImmutableArray<FFmpeg.Interop.MediaType> MediaTypes) -> void
@@ -377,6 +405,14 @@ FFmpeg.Interop.FFmpegLogging
 FFmpeg.Interop.FFmpegLogging.DemotionScope
 FFmpeg.Interop.FFmpegLogging.DemotionScope.DemotionScope() -> void
 FFmpeg.Interop.FFmpegLogging.DemotionScope.Dispose() -> void
+FFmpeg.Interop.FilterGraph
+FFmpeg.Interop.FilterGraph.Dispose() -> void
+FFmpeg.Interop.FilterGraph.InputCount.get -> int
+FFmpeg.Interop.FilterGraph.NativePointer.get -> FFmpeg.Interop.Native.AVFilterGraph*
+FFmpeg.Interop.FilterGraph.OutputTimeBase.get -> FFmpeg.Interop.Rational
+FFmpeg.Interop.FilterGraph.Receive(FFmpeg.Interop.Frame! frame) -> FFmpeg.Interop.CodecStatus
+FFmpeg.Interop.FilterGraph.Send(FFmpeg.Interop.Frame! frame, int input = 0) -> void
+FFmpeg.Interop.FilterGraph.SendEndOfStream(int input = 0) -> void
 FFmpeg.Interop.Frame
 FFmpeg.Interop.Frame.AllocateAudio(int sampleCount, FFmpeg.Interop.SampleFormat format, FFmpeg.Interop.ChannelLayout layout, int sampleRate) -> void
 FFmpeg.Interop.Frame.AllocateVideo(int width, int height, FFmpeg.Interop.PixelFormat format, int alignment = 0) -> void
@@ -6368,6 +6404,21 @@ FFmpeg.Interop.VideoEncoderOptions.TimeBase.init -> void
 FFmpeg.Interop.VideoEncoderOptions.VideoEncoderOptions() -> void
 FFmpeg.Interop.VideoEncoderOptions.Width.get -> int
 FFmpeg.Interop.VideoEncoderOptions.Width.init -> void
+FFmpeg.Interop.VideoFilterInput
+FFmpeg.Interop.VideoFilterInput.<Clone>$() -> FFmpeg.Interop.VideoFilterInput!
+FFmpeg.Interop.VideoFilterInput.Deconstruct(out int Width, out int Height, out FFmpeg.Interop.PixelFormat PixelFormat, out FFmpeg.Interop.Rational TimeBase) -> void
+FFmpeg.Interop.VideoFilterInput.Equals(FFmpeg.Interop.VideoFilterInput? other) -> bool
+FFmpeg.Interop.VideoFilterInput.Height.get -> int
+FFmpeg.Interop.VideoFilterInput.Height.init -> void
+FFmpeg.Interop.VideoFilterInput.PixelFormat.get -> FFmpeg.Interop.PixelFormat
+FFmpeg.Interop.VideoFilterInput.PixelFormat.init -> void
+FFmpeg.Interop.VideoFilterInput.SampleAspectRatio.get -> FFmpeg.Interop.Rational
+FFmpeg.Interop.VideoFilterInput.SampleAspectRatio.init -> void
+FFmpeg.Interop.VideoFilterInput.TimeBase.get -> FFmpeg.Interop.Rational
+FFmpeg.Interop.VideoFilterInput.TimeBase.init -> void
+FFmpeg.Interop.VideoFilterInput.VideoFilterInput(int Width, int Height, FFmpeg.Interop.PixelFormat PixelFormat, FFmpeg.Interop.Rational TimeBase) -> void
+FFmpeg.Interop.VideoFilterInput.Width.get -> int
+FFmpeg.Interop.VideoFilterInput.Width.init -> void
 FFmpeg.Interop.VideoToolboxExtensions
 FFmpeg.Interop.VideoToolboxExtensions.extension(FFmpeg.Interop.Frame!)
 FFmpeg.Interop.VideoToolboxExtensions.extension(FFmpeg.Interop.Frame!).TryGetCVPixelBuffer(out nint pixelBuffer) -> bool
@@ -7221,6 +7272,9 @@ override FFmpeg.Interop.AudioEncoderOptions.<Clone>$() -> FFmpeg.Interop.AudioEn
 override FFmpeg.Interop.AudioEncoderOptions.Equals(object? obj) -> bool
 override FFmpeg.Interop.AudioEncoderOptions.GetHashCode() -> int
 override FFmpeg.Interop.AudioEncoderOptions.ToString() -> string!
+override FFmpeg.Interop.AudioFilterInput.Equals(object? obj) -> bool
+override FFmpeg.Interop.AudioFilterInput.GetHashCode() -> int
+override FFmpeg.Interop.AudioFilterInput.ToString() -> string!
 override FFmpeg.Interop.CaptureDevice.Equals(object? obj) -> bool
 override FFmpeg.Interop.CaptureDevice.GetHashCode() -> int
 override FFmpeg.Interop.CaptureDevice.ToString() -> string!
@@ -7275,11 +7329,18 @@ override FFmpeg.Interop.VideoEncoderOptions.<Clone>$() -> FFmpeg.Interop.VideoEn
 override FFmpeg.Interop.VideoEncoderOptions.Equals(object? obj) -> bool
 override FFmpeg.Interop.VideoEncoderOptions.GetHashCode() -> int
 override FFmpeg.Interop.VideoEncoderOptions.ToString() -> string!
+override FFmpeg.Interop.VideoFilterInput.Equals(object? obj) -> bool
+override FFmpeg.Interop.VideoFilterInput.GetHashCode() -> int
+override FFmpeg.Interop.VideoFilterInput.ToString() -> string!
 override FFmpeg.Interop.VulkanDevice.GetHashCode() -> int
 override sealed FFmpeg.Interop.AudioEncoderOptions.Equals(FFmpeg.Interop.EncoderOptions? other) -> bool
 override sealed FFmpeg.Interop.VideoEncoderOptions.Equals(FFmpeg.Interop.EncoderOptions? other) -> bool
 static FFmpeg.Interop.AudioEncoderOptions.operator !=(FFmpeg.Interop.AudioEncoderOptions? left, FFmpeg.Interop.AudioEncoderOptions? right) -> bool
 static FFmpeg.Interop.AudioEncoderOptions.operator ==(FFmpeg.Interop.AudioEncoderOptions? left, FFmpeg.Interop.AudioEncoderOptions? right) -> bool
+static FFmpeg.Interop.AudioFilterInput.operator !=(FFmpeg.Interop.AudioFilterInput? left, FFmpeg.Interop.AudioFilterInput? right) -> bool
+static FFmpeg.Interop.AudioFilterInput.operator ==(FFmpeg.Interop.AudioFilterInput? left, FFmpeg.Interop.AudioFilterInput? right) -> bool
+static FFmpeg.Interop.BitstreamFilter.Create(string! name, FFmpeg.Interop.MediaStream! input) -> FFmpeg.Interop.BitstreamFilter!
+static FFmpeg.Interop.BitstreamFilter.Create(string! name, FFmpeg.Interop.Native.AVCodecParameters* parameters, FFmpeg.Interop.Rational timeBase) -> FFmpeg.Interop.BitstreamFilter!
 static FFmpeg.Interop.CaptureDevice.operator !=(FFmpeg.Interop.CaptureDevice? left, FFmpeg.Interop.CaptureDevice? right) -> bool
 static FFmpeg.Interop.CaptureDevice.operator ==(FFmpeg.Interop.CaptureDevice? left, FFmpeg.Interop.CaptureDevice? right) -> bool
 static FFmpeg.Interop.ChannelLayout.Default(int channelCount) -> FFmpeg.Interop.ChannelLayout
@@ -7376,6 +7437,8 @@ static FFmpeg.Interop.FFmpegLogging.Level.get -> FFmpeg.Interop.FFmpegLogLevel
 static FFmpeg.Interop.FFmpegLogging.Level.set -> void
 static FFmpeg.Interop.FFmpegLogging.RouteTo(Microsoft.Extensions.Logging.ILoggerFactory! factory) -> System.IDisposable!
 static FFmpeg.Interop.FFmpegLogging.UseLoggerFactory(Microsoft.Extensions.Logging.ILoggerFactory? factory) -> void
+static FFmpeg.Interop.FilterGraph.Audio(string! description, System.ReadOnlySpan<FFmpeg.Interop.AudioFilterInput!> inputs, System.ReadOnlySpan<FFmpeg.Interop.SampleFormat> outputFormats = default(System.ReadOnlySpan<FFmpeg.Interop.SampleFormat>)) -> FFmpeg.Interop.FilterGraph!
+static FFmpeg.Interop.FilterGraph.Video(string! description, System.ReadOnlySpan<FFmpeg.Interop.VideoFilterInput!> inputs, System.ReadOnlySpan<FFmpeg.Interop.PixelFormat> outputFormats = default(System.ReadOnlySpan<FFmpeg.Interop.PixelFormat>)) -> FFmpeg.Interop.FilterGraph!
 static FFmpeg.Interop.Frame.WrapImage(System.ReadOnlyMemory<byte> image, int width, int height, FFmpeg.Interop.PixelFormat format, int alignment = 1) -> FFmpeg.Interop.Frame!
 static FFmpeg.Interop.GpuAdapter.Enumerate() -> System.Collections.Immutable.ImmutableArray<FFmpeg.Interop.GpuAdapter!>
 static FFmpeg.Interop.GpuAdapter.FindByDrmDevice(ulong deviceNumber) -> FFmpeg.Interop.GpuAdapter?
@@ -7492,6 +7555,8 @@ static FFmpeg.Interop.VaapiExtensions.TryGetVaapiDisplay(this FFmpeg.Interop.Har
 static FFmpeg.Interop.VaapiExtensions.TryGetVaapiSurface(this FFmpeg.Interop.Frame! frame, out uint surfaceId) -> bool
 static FFmpeg.Interop.VideoEncoderOptions.operator !=(FFmpeg.Interop.VideoEncoderOptions? left, FFmpeg.Interop.VideoEncoderOptions? right) -> bool
 static FFmpeg.Interop.VideoEncoderOptions.operator ==(FFmpeg.Interop.VideoEncoderOptions? left, FFmpeg.Interop.VideoEncoderOptions? right) -> bool
+static FFmpeg.Interop.VideoFilterInput.operator !=(FFmpeg.Interop.VideoFilterInput? left, FFmpeg.Interop.VideoFilterInput? right) -> bool
+static FFmpeg.Interop.VideoFilterInput.operator ==(FFmpeg.Interop.VideoFilterInput? left, FFmpeg.Interop.VideoFilterInput? right) -> bool
 static FFmpeg.Interop.VideoToolboxExtensions.TryGetCVPixelBuffer(this FFmpeg.Interop.Frame! frame, out nint pixelBuffer) -> bool
 static FFmpeg.Interop.VideoToolboxExtensions.TryGetIOSurface(this FFmpeg.Interop.Frame! frame, out nint surface) -> bool
 static FFmpeg.Interop.VideoToolboxExtensions.WrapCVPixelBuffer(this FFmpeg.Interop.HardwareFramePool! pool, nint pixelBuffer, FFmpeg.Interop.Frame! destination) -> void

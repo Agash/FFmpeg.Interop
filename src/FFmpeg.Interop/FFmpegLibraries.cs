@@ -38,6 +38,7 @@ public static class FFmpegLibraries
         ("avutil", LibAVUtil.LIBAVUTIL_VERSION_MAJOR),
         ("avcodec", LibAVCodec.LIBAVCODEC_VERSION_MAJOR),
         ("avformat", LibAVFormat.LIBAVFORMAT_VERSION_MAJOR),
+        ("avfilter", LibAVFilter.LIBAVFILTER_VERSION_MAJOR),
         ("avdevice", LibAVDevice.LIBAVDEVICE_VERSION_MAJOR),
         ("swscale", LibSwScale.LIBSWSCALE_VERSION_MAJOR),
         ("swresample", LibSwResample.LIBSWRESAMPLE_VERSION_MAJOR),
@@ -47,7 +48,7 @@ public static class FFmpegLibraries
     // loaded by path finds its dependencies only on the loader's search path or through its RUNPATH,
     // which many builds (BtbN's among them) do not set; glibc does, however, satisfy a dependency with an
     // already loaded library of the same soname. Loading in this order is what lets a private directory
-    // of FFmpeg libraries work without LD_LIBRARY_PATH. libavfilter is not bound, but libavdevice links it.
+    // of FFmpeg libraries work without LD_LIBRARY_PATH.
     private static readonly (string Name, int Major)[] s_linkOrder =
     [
         ("avutil", LibAVUtil.LIBAVUTIL_VERSION_MAJOR),
