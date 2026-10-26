@@ -166,6 +166,15 @@ public sealed unsafe class HardwareDevice : IDisposable
     ) => TryCreateCore(type, null, null, out device, out _);
 
     /// <summary>
+    /// Another reference to this device. Opening a device costs from milliseconds to over a second
+    /// (Vulkan creates an instance and a logical device), so a device opened once can be shared by every
+    /// codec and pool that runs on it; it closes when the last reference is disposed.
+    /// </summary>
+    /// <returns>The new reference.</returns>
+    public HardwareDevice Share() =>
+        new(SafeBufferHandle.Own(av_buffer_ref(NativePointer), "av_buffer_ref"));
+
+    /// <summary>
     /// Opens a device of another type on the same hardware, sharing it: a VA-API device derived from a
     /// DRM device, or a Vulkan device derived from a D3D11VA or VA-API one, lets frames be mapped between
     /// the two without a copy.

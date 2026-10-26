@@ -8309,3 +8309,4 @@ virtual FFmpeg.Interop.EncoderOptions.PrintMembers(System.Text.StringBuilder! bu
 ~override FFmpeg.Interop.SampleFormat.Equals(object obj) -> bool
 ~override FFmpeg.Interop.VulkanDevice.Equals(object obj) -> bool
 ~override FFmpeg.Interop.VulkanDevice.ToString() -> string
+FFmpeg.Interop.HardwareDevice.Share() -> FFmpeg.Interop.HardwareDevice!
