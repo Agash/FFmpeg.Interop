@@ -7,14 +7,29 @@ and resampling, over complete source-generated bindings to the native libraries.
   planes and samples as spans; zero-copy wrapping of managed memory in both directions; allocation-free
   send/receive loops; hardware devices chosen by GPU, typed views of D3D11, D3D12, VA-API, DRM PRIME,
   Vulkan, CUDA and VideoToolbox surfaces; options checked by name.
-- **Native layer** (`FFmpeg.Interop.Native`): libavutil, libavcodec, libavformat, libavdevice,
-  libswscale and libswresample, plus the hardware context headers, generated with ClangSharp from the
+- **Native layer** (`FFmpeg.Interop.Native`): libavutil, libavcodec, libavformat, libavfilter,
+  libavdevice, libswscale and libswresample, plus the hardware context headers, generated with ClangSharp from the
   pinned FFmpeg release. Every managed type exposes its native pointer, so anything the managed layer
   does not cover is one step away.
 
 The package contains bindings only. Bring FFmpeg 9 shared libraries (`avcodec-63` and friends): the
 loader finds them in `FFmpegLibraries.SearchDirectory`, `runtimes/<rid>/native`, the application
 directory or the OS search path, and refuses a library of another ABI major.
+
+## Getting FFmpeg 9
+
+- **Windows and Linux:** BtbN's shared builds, `ffmpeg-n9.0-latest-<os>64-lgpl-shared-9.0` from
+  [FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds/releases) (LGPL; `gpl` adds x264 and x265). The
+  libraries are in `bin/` on Windows and `lib/` on Linux; point `FFmpegLibraries.SearchDirectory` there or
+  ship them next to the application. `eng/fetch-ffmpeg.ps1 -Rids <rid>` fetches the build this repository
+  tests against, checksum-verified, into `native/<rid>`.
+- **macOS:** Homebrew's `ffmpeg` (VideoToolbox enabled): `brew install ffmpeg`, then
+  `$(brew --prefix ffmpeg)/lib`.
+- **Linux distributions:** a distribution's `ffmpeg` package works when it is FFmpeg 9
+  (`libavcodec.so.63`); the loader refuses another major.
+
+On Linux, libraries loaded from a private directory find each other without `LD_LIBRARY_PATH`: they are
+loaded in link order, so each dependency is already in the process.
 
 ## Decoding
 
@@ -39,6 +54,54 @@ while (reader.TryReadPacket(packet))
 foreach (Frame decoded in decoder.Decode(null, frame)) { /* drain */ }
 ```
 
+## Remuxing and tags
+
+Stream copy moves packets between containers without decoding. A copied stream keeps its tags and
+disposition, as ffmpeg's does, and the writer's own tags go out with the header:
+
+```csharp
+using MediaReader reader = MediaReader.Open("in.mp4");
+using MediaWriter writer = MediaWriter.Create("out.mkv");
+int[] streams = [.. reader.Streams.Select(writer.AddStream)];
+writer.SetMetadata("title", "Remuxed");
+writer.WriteHeader();
+
+using Packet packet = new();
+while (reader.TryReadPacket(packet))
+{
+    writer.Write(packet, streams[packet.StreamIndex]);
+}
+
+writer.Complete();
+```
+
+`MediaReader.OpenStream` and `MediaWriter.CreateStream` do the same over any `Stream`, every open and read
+takes a `CancellationToken` that interrupts a blocked network input, and `MediaReader.Seek` lands on the
+keyframe at or before a time. `BitstreamFilter` rewrites packets on the way (`h264_mp4toannexb` for a
+raw or MPEG-TS output), and `AudioFifo` turns any frame sizes into the fixed size an encoder takes.
+
+## Filtering
+
+`FilterGraph` runs FFmpeg's filter syntax between buffer sources and a buffer sink, converting into the
+formats the sink is given:
+
+```csharp
+using FilterGraph graph = FilterGraph.Video(
+    "yadif,scale=1280:720",
+    [new VideoFilterInput(1920, 1080, PixelFormat.Yuv420P, new Rational(1, 30))],
+    [PixelFormat.Nv12]
+);
+
+graph.Send(decoded);
+while (graph.Receive(scaled) == CodecStatus.Available)
+{
+    // scaled is deinterlaced 1280x720 NV12, timed in graph.OutputTimeBase.
+}
+```
+
+Several inputs are labelled `[in0]`, `[in1]` and so on, as in `[in0][in1]overlay=8:8`; `FilterGraph.Audio`
+does the same for `aresample`, `amix` and the other audio filters.
+
 ## Hardware
 
 FFmpeg picks a GPU differently for every API (a DXGI index, a Vulkan index, a CUDA index, a render
@@ -47,7 +110,7 @@ node, or the default adapter). `GpuAdapter` is one identity for all of them:
 ```csharp
 GpuAdapter gpu = GpuAdapter.Enumerate().First(a => a.Vendor == GpuVendor.Nvidia);
 
-using HardwareDevice cuda = HardwareDevice.Create(HardwareDeviceType.Cuda, gpu);
+using HardwareDevice cuda = HardwareDevice.CreateForAdapter(HardwareDeviceType.Cuda, gpu);
 using Decoder decoder = video.CreateDecoder(options: new DecoderOptions { HardwareDevice = cuda });
 ```
 
@@ -96,6 +159,12 @@ What a sender needs from an encoder is there without dropping to the native laye
   the same until the returned route is disposed, for a container that owns its factory.
   `FFmpegLogging.Demote()` caps a thread's messages at Debug while it probes, for failures the caller
   expects and reports itself.
+
+## Samples
+
+- `samples/FFmpeg.Interop.Thumbnail`: the first picture of a video, scaled and written as a PNG.
+- `samples/FFmpeg.Interop.Smoke`: encodes a clip to a file, reads it back and decodes it; CI publishes
+  it with native AOT and runs it.
 
 ## Building
 

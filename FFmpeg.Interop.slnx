@@ -1,6 +1,7 @@
 <Solution>
     <Folder Name="/samples/">
         <Project Path="samples/FFmpeg.Interop.Smoke/FFmpeg.Interop.Smoke.csproj" />
+        <Project Path="samples/FFmpeg.Interop.Thumbnail/FFmpeg.Interop.Thumbnail.csproj" />
     </Folder>
     <Folder Name="/src/">
         <Project Path="src/FFmpeg.Interop/FFmpeg.Interop.csproj" />
