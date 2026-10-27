@@ -25,38 +25,61 @@ jobs:
   native:
     name: FFmpeg (${{ matrix.rid }})
     runs-on: ${{ matrix.os }}
-    # AlmaLinux 8 (glibc 2.28, the manylinux_2_28 baseline), so the libraries load on distributions and
-    # SBC images far older than the runner's own; eng/build-ffmpeg.sh brings current kernel interfaces.
-    container: almalinux:8
+    # Linux builds in AlmaLinux 8 (glibc 2.28, the manylinux_2_28 baseline), so the libraries load on
+    # distributions and SBC images far older than the runner's own; eng/build-ffmpeg.sh brings current
+    # kernel interfaces. Windows cross-compiles with llvm-mingw on the runner itself.
+    container: ${{ matrix.container }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-26.04, rid: linux-x64 }
-          - { os: ubuntu-26.04-arm, rid: linux-arm64 }
+          - { os: ubuntu-26.04, rid: linux-x64, container: "almalinux:8", image: linux }
+          - { os: ubuntu-26.04-arm, rid: linux-arm64, container: "almalinux:8", image: linux }
+          - { os: ubuntu-26.04, rid: win-x64, image: windows }
+          - { os: ubuntu-26.04, rid: win-arm64, image: windows }
+    env:
+      # Everything a build is made from: an unchanged set takes the finished libraries from the cache.
+      SOURCES: ${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/check-ffmpeg.sh', 'eng/*-build-image.sh') }}
     steps:
-      - name: Install the build tools
+      - name: Install git (Linux image)
+        if: matrix.container
         run: |
           dnf install -y -q git
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@v7
 
-      - name: Install the build image's tools
-        run: eng/linux-build-image.sh
+      - name: Take the libraries built from these sources
+        id: built
+        uses: actions/cache@v5
+        with:
+          path: |
+            artifacts/native/${{ matrix.rid }}
+            artifacts/native/LICENSE.ffmpeg.txt
+          key: ffmpeg-${{ matrix.rid }}-${{ env.SOURCES }}
 
-      # The pinned sources and the libraries built from them; FFmpeg itself is always built.
-      - uses: actions/cache@v5
+      - name: Install the build image's tools
+        if: steps.built.outputs.cache-hit != 'true'
+        run: |
+          if [ -n "${{ matrix.container }}" ]; then eng/linux-build-image.sh; else sudo eng/windows-build-image.sh; fi
+
+      # The pinned sources, the toolchain and the dependencies built from them, for a build that changes
+      # only FFmpeg's own configuration.
+      - name: Take the dependencies
+        if: steps.built.outputs.cache-hit != 'true'
+        uses: actions/cache@v5
         with:
           path: |
             artifacts/obj/ffmpeg/sources
+            artifacts/obj/ffmpeg/host
             artifacts/obj/ffmpeg/${{ matrix.rid }}/prefix
             artifacts/obj/ffmpeg/${{ matrix.rid }}/*.done
-          key: ffmpeg-deps-${{ matrix.rid }}-${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/linux-build-image.sh') }}
+          key: ffmpeg-deps-${{ matrix.rid }}-${{ env.SOURCES }}
 
       - name: Build FFmpeg
+        if: steps.built.outputs.cache-hit != 'true'
         run: |
-          source /opt/rh/gcc-toolset-13/enable
+          if [ -n "${{ matrix.container }}" ]; then source /opt/rh/gcc-toolset-13/enable; fi
           eng/build-ffmpeg.sh ${{ matrix.rid }}
 
       # A tarball keeps the libraries' symlinks and the tools' executable bit, which artifacts drop.
@@ -107,14 +130,15 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends libva2 libva-drm2 libdrm2 libvulkan1 mesa-vulkan-drivers
 
-      - name: Take the FFmpeg built above (Linux)
-        if: runner.os == 'Linux'
+      - name: Take the FFmpeg built above
+        if: runner.os != 'macOS'
         uses: actions/download-artifact@v8
         with:
           name: ffmpeg-${{ matrix.rid }}
 
-      - name: Unpack it (Linux)
-        if: runner.os == 'Linux'
+      - name: Unpack it
+        if: runner.os != 'macOS'
+        shell: bash
         run: mkdir -p native && tar -C native -xzf ffmpeg-${{ matrix.rid }}.tar.gz
 
       - name: Install FFmpeg (macOS)
@@ -122,7 +146,7 @@ jobs:
         run: brew install ffmpeg
 
       - name: Fetch the pinned FFmpeg build
-        if: runner.os != 'Linux'
+        if: runner.os == 'macOS'
         shell: pwsh
         run: ./eng/fetch-ffmpeg.ps1 -Rid ${{ matrix.rid }}
 

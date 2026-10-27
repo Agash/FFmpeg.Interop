@@ -49,5 +49,10 @@
     "version": "6.12",
     "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/include/uapi/linux/dma-buf.h",
     "sha256": "f9e4cff5ae3a9e5d9b0db9a22cb98720d4d9d656544e0088d80c17a436c5b8f2"
+  },
+  "llvmMingw": {
+    "version": "20261020",
+    "url": "https://github.com/mstorsjo/llvm-mingw/releases/download/20261020/llvm-mingw-20261020-ucrt-ubuntu-22.04-x86_64.tar.xz",
+    "sha256": "55064b60b991a1e1e8090b8c2f84e82b22cfe5903d12c159d65064cf5e8ae335"
   }
 }

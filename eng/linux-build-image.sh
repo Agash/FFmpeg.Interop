@@ -11,5 +11,5 @@ dnf config-manager --set-enabled powertools
 # GCC 13 from the toolset, still linking against the system's glibc 2.28; meson needs a newer Python
 # than the image's 3.6.
 dnf install -y -q gcc-toolset-13-gcc gcc-toolset-13-gcc-c++ make cmake git tar xz bzip2 nasm patchelf \
-  pkgconf-pkg-config python3.11 python3.11-pip binutils diffutils which
+  pkgconf-pkg-config python3.11 python3.11-pip binutils diffutils which autoconf automake libtool
 python3.11 -m pip install -q meson ninja
