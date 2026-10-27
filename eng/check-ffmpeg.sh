@@ -41,23 +41,18 @@ case "$rid" in
     fi
     if [[ $rid == linux-arm64 ]]; then
       # MPP is in every process that loads libavcodec, Rockchip board or not: a codec that finds no
-      # engine fails to open, and the process still exits cleanly.
-      for codec in h264_rkmpp hevc_rkmpp; do
-        status=0
-        "$ffmpeg" -hide_banner -loglevel quiet -f lavfi -i testsrc2=d=0.1 -c:v $codec -f null - || status=$?
-        if (( status >= 128 )); then
-          echo "opening $codec without a Rockchip engine killed ffmpeg (signal $((status - 128)))" >&2
+      # engine fails to open, and the process still exits cleanly. FFmpeg's exit status is its own error
+      # code, so a signal is told apart by Python, which reports it as a negative status.
+      "$ffmpeg" -hide_banner -loglevel quiet -f lavfi -i testsrc2=d=0.2 -c:v libopenh264 -f h264 "$dir/rkmpp.h264"
+      for run in "-f lavfi -i testsrc2=d=0.1 -c:v h264_rkmpp" "-f lavfi -i testsrc2=d=0.1 -c:v hevc_rkmpp"         "-c:v h264_rkmpp -i $dir/rkmpp.h264"; do
+        # shellcheck disable=SC2086 # the run's arguments are meant to split
+        signal="$(python3 -c 'import subprocess,sys; r=subprocess.run(sys.argv[1:]).returncode; print(-r if r<0 else 0)'           "$ffmpeg" -hide_banner -loglevel quiet $run -f null -)"
+        if [[ $signal != 0 ]]; then
+          echo "ffmpeg $run without a Rockchip engine was killed by signal $signal" >&2
           failed=1
         fi
       done
-      status=0
-      "$ffmpeg" -hide_banner -loglevel quiet -f lavfi -i testsrc2=d=0.2 -c:v libopenh264 -f h264 "$dir/rkmpp.h264"
-      "$ffmpeg" -hide_banner -loglevel quiet -c:v h264_rkmpp -i "$dir/rkmpp.h264" -f null - || status=$?
       rm -f "$dir/rkmpp.h264"
-      if (( status >= 128 )); then
-        echo "opening h264_rkmpp to decode without a Rockchip engine killed ffmpeg (signal $((status - 128)))" >&2
-        failed=1
-      fi
       need encoder "$("$ffmpeg" -hide_banner -encoders)" h264_rkmpp hevc_rkmpp
       need decoder "$("$ffmpeg" -hide_banner -decoders)" h264_rkmpp hevc_rkmpp vp8_rkmpp vp9_rkmpp
     fi

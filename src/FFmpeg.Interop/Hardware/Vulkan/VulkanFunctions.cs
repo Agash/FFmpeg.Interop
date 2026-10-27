@@ -99,6 +99,27 @@ internal readonly unsafe struct VulkanFunctions
         VkResult> GetMemoryFdProperties;
     public readonly delegate* unmanaged[Stdcall]<
         void*,
+        VkMemoryGetFdInfoKHR*,
+        int*,
+        VkResult> GetMemoryFd;
+    public readonly delegate* unmanaged[Stdcall]<
+        void*,
+        VkSemaphoreGetFdInfoKHR*,
+        int*,
+        VkResult> GetSemaphoreFd;
+    public readonly delegate* unmanaged[Stdcall]<
+        void*,
+        void*,
+        VkImageDrmFormatModifierPropertiesEXT*,
+        VkResult> GetImageDrmFormatModifierProperties;
+    public readonly delegate* unmanaged[Stdcall]<
+        void*,
+        void*,
+        VkImageSubresource*,
+        VkSubresourceLayout*,
+        void> GetImageSubresourceLayout;
+    public readonly delegate* unmanaged[Stdcall]<
+        void*,
         VkMemoryAllocateInfo*,
         void*,
         void**,
@@ -228,6 +249,31 @@ internal readonly unsafe struct VulkanFunctions
             int,
             VkMemoryFdPropertiesKHR*,
             VkResult>)Optional(getDeviceProcAddr, context->act_dev, "vkGetMemoryFdPropertiesKHR");
+        GetMemoryFd = (delegate* unmanaged[Stdcall]<
+            void*,
+            VkMemoryGetFdInfoKHR*,
+            int*,
+            VkResult>)Optional(getDeviceProcAddr, context->act_dev, "vkGetMemoryFdKHR");
+        GetSemaphoreFd = (delegate* unmanaged[Stdcall]<
+            void*,
+            VkSemaphoreGetFdInfoKHR*,
+            int*,
+            VkResult>)Optional(getDeviceProcAddr, context->act_dev, "vkGetSemaphoreFdKHR");
+        GetImageDrmFormatModifierProperties = (delegate* unmanaged[Stdcall]<
+            void*,
+            void*,
+            VkImageDrmFormatModifierPropertiesEXT*,
+            VkResult>)Optional(
+            getDeviceProcAddr,
+            context->act_dev,
+            "vkGetImageDrmFormatModifierPropertiesEXT"
+        );
+        GetImageSubresourceLayout = (delegate* unmanaged[Stdcall]<
+            void*,
+            void*,
+            VkImageSubresource*,
+            VkSubresourceLayout*,
+            void>)Device("vkGetImageSubresourceLayout");
         AllocateMemory = (delegate* unmanaged[Stdcall]<
             void*,
             VkMemoryAllocateInfo*,

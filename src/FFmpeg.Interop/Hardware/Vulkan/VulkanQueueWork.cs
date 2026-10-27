@@ -158,13 +158,14 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
         }
     }
 
-    // Ends and submits a command buffer after the frames' pending work and any other timeline points,
-    // signalling each image's next timeline value; returns the value of this object's timeline the work
-    // completes at.
+    // Ends and submits a command buffer after the frames' pending work and any other semaphores (a
+    // binary one's value is ignored), signalling each image's next timeline value and, when given, a
+    // binary semaphore; returns the value of this object's timeline the work completes at.
     public ulong Submit(
         void* commands,
         ReadOnlySpan<nint> frames,
-        ReadOnlySpan<(nint Semaphore, ulong Value)> after = default
+        ReadOnlySpan<(nint Semaphore, ulong Value)> after = default,
+        void* signal = null
     )
     {
         VulkanFunctions.Check(_vk.EndCommandBuffer(commands), "vkEndCommandBuffer");
@@ -175,7 +176,8 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
         }
 
         int waited = images + after.Length;
-        int count = waited + 1;
+        int signalCount = images + 1 + (signal is null ? 0 : 1);
+        int count = Math.Max(waited, signalCount);
         void** semaphores = stackalloc void*[count];
         ulong* waits = stackalloc ulong[count];
         ulong* signals = stackalloc ulong[count];
@@ -203,7 +205,7 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
         }
 
         ulong done = ++_submitted;
-        void** signalled = stackalloc void*[images + 1];
+        void** signalled = stackalloc void*[signalCount];
         for (int i = 0; i < images; i++)
         {
             signalled[i] = semaphores[i];
@@ -211,6 +213,11 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
 
         signalled[images] = _done;
         signals[images] = done;
+        if (signal is not null)
+        {
+            signalled[images + 1] = signal;
+            signals[images + 1] = 0;
+        }
 
         // The work's own timeline is only signalled, so the wait list leaves it out.
         VkTimelineSemaphoreSubmitInfo timeline = new()
@@ -218,7 +225,7 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
             sType = VkStructureType.VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
             waitSemaphoreValueCount = (uint)waited,
             pWaitSemaphoreValues = waits,
-            signalSemaphoreValueCount = (uint)(images + 1),
+            signalSemaphoreValueCount = (uint)signalCount,
             pSignalSemaphoreValues = signals,
         };
         VkSubmitInfo submit = new()
@@ -230,7 +237,7 @@ internal sealed unsafe class VulkanQueueWork : IDisposable
             pWaitDstStageMask = stages,
             commandBufferCount = 1,
             pCommandBuffers = &commands,
-            signalSemaphoreCount = (uint)(images + 1),
+            signalSemaphoreCount = (uint)signalCount,
             pSignalSemaphores = signalled,
         };
 
