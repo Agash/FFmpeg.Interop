@@ -286,7 +286,7 @@ if [[ ! -f "$work/lame.done" ]]; then
   lame="$(fetch "$native" lame)"
   mkdir -p "$work/lame"
   (cd "$work/lame" && "$lame/configure" ${triple:+--host=$triple} --prefix="$prefix" --libdir="$prefix/lib" \
-    --disable-shared --enable-static --with-pic --disable-frontend --disable-gtktest >>"$log" 2>&1 \
+    --disable-shared --enable-static --with-pic --disable-frontend --disable-decoder --disable-analyzer-hooks --disable-gtktest >>"$log" 2>&1 \
     && make -j"$jobs" >>"$log" 2>&1 && make install >>"$log" 2>&1)
   touch "$work/lame.done"
 fi
