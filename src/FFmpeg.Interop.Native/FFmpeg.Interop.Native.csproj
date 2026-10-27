@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The FFmpeg 9 libraries FFmpeg.Interop is generated from, built by eng/build-ffmpeg.sh, packed one
+    runtime per package so a consumer downloads only what it runs on, as runtime.<rid> packages do:
+
+      dotnet pack -p:NativeRuntime=win-x64     FFmpeg.Interop.Native.win-x64, from artifacts/native/win-x64
+      dotnet pack                              FFmpeg.Interop.Native, which depends on every runtime's
+
+    Nothing is compiled; the packages hold runtimes/<rid>/native and the build's licence.
+  -->
+  <PropertyGroup>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <IsPackable>true</IsPackable>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <DevelopmentDependency>false</DevelopmentDependency>
+    <PackageTags>ffmpeg;libav;native;video;audio;codec;hardware;nvenc;amf;qsv;vaapi;vulkan;videotoolbox;d3d12</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Runtimes>win-x64;win-arm64;linux-x64;linux-arm64;osx-arm64;osx-x64</Runtimes>
+    <Native>$(MSBuildThisFileDirectory)../../artifacts/native/$(NativeRuntime)/</Native>
+  </PropertyGroup>
+
+  <!-- One runtime's libraries. -->
+  <PropertyGroup Condition="'$(NativeRuntime)' != ''">
+    <PackageId>FFmpeg.Interop.Native.$(NativeRuntime)</PackageId>
+    <Description>FFmpeg 9 shared libraries for $(NativeRuntime), the build FFmpeg.Interop is generated from: hardware codecs for every API the platform has, the LGPL software codecs (OpenH264, SVT-AV1, dav1d, libvpx, kvazaar), built from pinned upstream sources.</Description>
+    <!-- Rockchip's MPP, on linux-arm64 only, is in FFmpeg's LGPL 3 group. -->
+    <PackageLicenseExpression Condition="'$(NativeRuntime)' == 'linux-arm64'">LGPL-3.0-or-later</PackageLicenseExpression>
+    <PackageLicenseExpression Condition="'$(NativeRuntime)' != 'linux-arm64'">LGPL-2.1-or-later</PackageLicenseExpression>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(NativeRuntime)' != ''">
+    <!-- The libraries only: lib/ on Linux and macOS, the DLLs in bin/ on Windows; the tools stay out. -->
+    <None Include="$(Native)lib/*" Pack="true" PackagePath="runtimes/$(NativeRuntime)/native/" Visible="false" />
+    <None Include="$(Native)bin/*.dll" Pack="true" PackagePath="runtimes/$(NativeRuntime)/native/" Visible="false" />
+    <None Include="$(Native)LICENSE.ffmpeg.txt" Pack="true" PackagePath="" Visible="false" />
+  </ItemGroup>
+
+  <!-- Every runtime's, through their packages: a nuspec, as dependencies on packages packed alongside cannot
+       be restored first. -->
+  <PropertyGroup Condition="'$(NativeRuntime)' == ''">
+    <PackageId>FFmpeg.Interop.Native</PackageId>
+    <NuspecFile>FFmpeg.Interop.Native.nuspec</NuspecFile>
+  </PropertyGroup>
+  <Target Name="SetNuspecProperties" BeforeTargets="_GetOutputItemsFromPack;GenerateNuspec" DependsOnTargets="MinVer" Condition="'$(NativeRuntime)' == ''">
+    <PropertyGroup>
+      <NuspecProperties>version=$(PackageVersion);authors=$(Authors);copyright=$(Copyright);repository=$(RepositoryUrl)</NuspecProperties>
+    </PropertyGroup>
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>

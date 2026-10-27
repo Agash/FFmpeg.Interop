@@ -268,7 +268,7 @@ jobs:
 
   pack:
     name: Pack
-    needs: [test, generated]
+    needs: [test, generated, native]
     if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -286,8 +286,21 @@ jobs:
             10.0.x
             11.0.x
 
+      - name: Take every runtime's FFmpeg
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ffmpeg-*
+          merge-multiple: true
+
       - name: Pack
-        run: dotnet pack src/FFmpeg.Interop/FFmpeg.Interop.csproj -c Release -o ${{ env.NuGetDirectory }}
+        run: |
+          mkdir -p artifacts/native
+          for archive in ffmpeg-*.tar.gz; do tar -C artifacts/native -xzf "$archive"; done
+          dotnet pack src/FFmpeg.Interop/FFmpeg.Interop.csproj -c Release -o ${{ env.NuGetDirectory }}
+          for rid in win-x64 win-arm64 linux-x64 linux-arm64 osx-arm64 osx-x64; do
+            dotnet pack src/FFmpeg.Interop.Native/FFmpeg.Interop.Native.csproj -c Release -p:NativeRuntime=$rid -o ${{ env.NuGetDirectory }}
+          done
+          dotnet pack src/FFmpeg.Interop.Native/FFmpeg.Interop.Native.csproj -c Release -o ${{ env.NuGetDirectory }}
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>FFmpeg.Interop.Native</id>
+    <version>$version$</version>
+    <authors>$authors$</authors>
+    <copyright>$copyright$</copyright>
+    <license type="expression">LGPL-2.1-or-later AND LGPL-3.0-or-later</license>
+    <projectUrl>$repository$</projectUrl>
+    <repository type="git" url="$repository$" />
+    <readme>README.md</readme>
+    <description>FFmpeg 9 shared libraries for every runtime FFmpeg.Interop supports, the build it is generated from; NuGet copies the one for the runtime being built or published. linux-arm64's is LGPL 3, for Rockchip's MPP; the others LGPL 2.1.</description>
+    <tags>ffmpeg libav native video audio codec hardware</tags>
+    <dependencies>
+      <group>
+        <dependency id="FFmpeg.Interop.Native.win-x64" version="[$version$]" />
+        <dependency id="FFmpeg.Interop.Native.win-arm64" version="[$version$]" />
+        <dependency id="FFmpeg.Interop.Native.linux-x64" version="[$version$]" />
+        <dependency id="FFmpeg.Interop.Native.linux-arm64" version="[$version$]" />
+        <dependency id="FFmpeg.Interop.Native.osx-arm64" version="[$version$]" />
+        <dependency id="FFmpeg.Interop.Native.osx-x64" version="[$version$]" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="README.md" target="" />
+  </files>
+</package>
