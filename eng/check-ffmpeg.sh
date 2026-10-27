@@ -137,7 +137,7 @@ case "$rid" in
         case "${import,,}" in
           av*|sw*|api-ms-win-*|kernel32.dll|user32.dll|advapi32.dll|ole32.dll|oleaut32.dll|shell32.dll \
             |bcrypt.dll|ws2_32.dll|secur32.dll|crypt32.dll|mfplat.dll|mf.dll|mfuuid.dll|strmiids.dll \
-            |gdi32.dll|psapi.dll|shlwapi.dll|vfw32.dll|cfgmgr32.dll|ucrtbase.dll|msvcrt.dll) ;;
+            |gdi32.dll|psapi.dll|shlwapi.dll|vfw32.dll|cfgmgr32.dll|ucrtbase.dll|msvcrt.dll|ncrypt.dll) ;;
           *) echo "$(basename "$dll") needs $import, which is not shipped" >&2; failed=1 ;;
         esac
       done <<<"$imports"

@@ -279,9 +279,9 @@ cmake_build aom "$native" -DAOM_TARGET_CPU="$cpu" -DENABLE_DOCS=0 -DENABLE_EXAMP
   -DENABLE_TESTDATA=0 -DENABLE_TOOLS=0 -DCONFIG_RUNTIME_CPU_DETECT=1 -DBUILD_SHARED_LIBS=0
 # Opus finds ARM's optional instructions at run time on Linux and macOS only; on Windows arm64 it takes
 # NEON, which every arm64 processor has, as given.
-opusflags=()
-if [[ $rid == win-arm64 ]]; then opusflags=(-Drtcd=disabled -Dasm=disabled); fi
-meson_build opus "$native" -Ddefault_library=static -Dtests=disabled -Ddocs=disabled -Dextra-programs=disabled "${opusflags[@]}"
+opus=(-Ddefault_library=static -Dtests=disabled -Ddocs=disabled -Dextra-programs=disabled)
+if [[ $rid == win-arm64 ]]; then opus+=(-Drtcd=disabled -Dasm=disabled); fi
+meson_build opus "$native" "${opus[@]}"
 if [[ ! -f "$work/lame.done" ]]; then
   lame="$(fetch "$native" lame)"
   mkdir -p "$work/lame"
