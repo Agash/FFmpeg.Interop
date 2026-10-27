@@ -37,9 +37,6 @@ jobs:
           - { os: ubuntu-26.04-arm, rid: linux-arm64, container: "almalinux:8", image: linux }
           - { os: ubuntu-26.04, rid: win-x64, image: windows }
           - { os: ubuntu-26.04, rid: win-arm64, image: windows }
-    env:
-      # Everything a build is made from: an unchanged set takes the finished libraries from the cache.
-      SOURCES: ${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/check-ffmpeg.sh', 'eng/*-build-image.sh') }}
     steps:
       - name: Install git (Linux image)
         if: matrix.container
@@ -56,7 +53,8 @@ jobs:
           path: |
             artifacts/native/${{ matrix.rid }}
             artifacts/native/LICENSE.ffmpeg.txt
-          key: ffmpeg-${{ matrix.rid }}-${{ env.SOURCES }}
+          # Everything a build is made from: an unchanged set takes the finished libraries from here.
+          key: ffmpeg-${{ matrix.rid }}-${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/check-ffmpeg.sh', 'eng/*-build-image.sh') }}
 
       - name: Install the build image's tools
         if: steps.built.outputs.cache-hit != 'true'
@@ -74,7 +72,7 @@ jobs:
             artifacts/obj/ffmpeg/host
             artifacts/obj/ffmpeg/${{ matrix.rid }}/prefix
             artifacts/obj/ffmpeg/${{ matrix.rid }}/*.done
-          key: ffmpeg-deps-${{ matrix.rid }}-${{ env.SOURCES }}
+          key: ffmpeg-deps-${{ matrix.rid }}-${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/check-ffmpeg.sh', 'eng/*-build-image.sh') }}
 
       - name: Build FFmpeg
         if: steps.built.outputs.cache-hit != 'true'
