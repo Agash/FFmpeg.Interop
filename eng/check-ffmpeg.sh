@@ -23,9 +23,18 @@ case "$rid" in
     ffmpeg="$dir/bin/ffmpeg"
     # LGPL 2.1 or later: nothing GPL, non-free or version 3 is configured in.
     grep -q "Lesser General Public" <<<"$("$ffmpeg" -hide_banner -L)" || { echo "not LGPL" >&2; failed=1; }
-    if grep -qE -- "--enable-(gpl|nonfree|version3)" <<<"$("$ffmpeg" -hide_banner -buildconf)"; then
-      echo "configured with a GPL, non-free or version 3 component" >&2
+    # Version 3 only on linux-arm64, for Rockchip's MPP.
+    banned="gpl|nonfree|version3"
+    if [[ $rid == linux-arm64 ]]; then
+      banned="gpl|nonfree"
+    fi
+    if grep -qE -- "--enable-($banned)" <<<"$("$ffmpeg" -hide_banner -buildconf)"; then
+      echo "configured with a component the licence does not allow" >&2
       failed=1
+    fi
+    if [[ $rid == linux-arm64 ]]; then
+      need encoder "$("$ffmpeg" -hide_banner -encoders)" h264_rkmpp hevc_rkmpp
+      need decoder "$("$ffmpeg" -hide_banner -decoders)" h264_rkmpp hevc_rkmpp av1_rkmpp
     fi
     need hwaccel "$("$ffmpeg" -hide_banner -hwaccels)" vaapi vulkan cuda drm
     need encoder "$("$ffmpeg" -hide_banner -encoders)" \

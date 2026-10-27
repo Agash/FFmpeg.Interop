@@ -173,6 +173,12 @@ if [[ $os == linux ]]; then
     -Dwith_wayland=no -Ddisable_drm=false
 fi
 
+# Rockchip's MPP, the hardware codecs of RK3588-class boards, on linux-arm64 only: FFmpeg counts it among
+# its LGPL version 3 libraries, so it makes this one runtime's build LGPL 3 and leaves the others 2.1.
+if [[ $rid == linux-arm64 ]]; then
+  cmake_build mpp "$native" -DBUILD_SHARED_LIBS=OFF -DBUILD_TEST=OFF -DRKPLATFORM=ON -DHAVE_DRM=ON
+fi
+
 # Codec libraries, static, inside FFmpeg's libraries.
 meson_build dav1d "$native" -Ddefault_library=static -Denable_tools=false -Denable_tests=false
 # OpenH264 with its own Makefile, the build its project maintains: its meson build leaves the AVX2
@@ -232,7 +238,12 @@ common=(
   --enable-libdav1d --enable-libsvtav1 --enable-libopenh264 --enable-libkvazaar --enable-libvpx
   --enable-vulkan --enable-amf --enable-ffnvcodec --enable-nvenc --enable-nvdec --enable-cuvid
 )
-[[ $arch == x86_64 ]] && common+=(--enable-libvpl)
+if [[ $arch == x86_64 ]]; then
+  common+=(--enable-libvpl)
+fi
+if [[ $rid == linux-arm64 ]]; then
+  common+=(--enable-rkmpp --enable-version3)
+fi
 if [[ $os == win ]]; then
   platform=(
     --target-os=mingw32 --arch="$arch" --enable-cross-compile --cross-prefix="$triple-"
