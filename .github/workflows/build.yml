@@ -22,8 +22,56 @@ env:
   DOTNET_NOLOGO: true
 
 jobs:
+  native:
+    name: FFmpeg (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    # AlmaLinux 8 (glibc 2.28, the manylinux_2_28 baseline), so the libraries load on distributions and
+    # SBC images far older than the runner's own; eng/build-ffmpeg.sh brings current kernel interfaces.
+    container: almalinux:8
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-26.04, rid: linux-x64 }
+          - { os: ubuntu-26.04-arm, rid: linux-arm64 }
+    steps:
+      - name: Install the build tools
+        run: |
+          dnf install -y -q git
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@v7
+
+      - name: Install the build image's tools
+        run: eng/linux-build-image.sh
+
+      # The pinned sources and the libraries built from them; FFmpeg itself is always built.
+      - uses: actions/cache@v5
+        with:
+          path: |
+            artifacts/obj/ffmpeg/sources
+            artifacts/obj/ffmpeg/${{ matrix.rid }}/prefix
+            artifacts/obj/ffmpeg/${{ matrix.rid }}/*.done
+          key: ffmpeg-deps-${{ matrix.rid }}-${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/linux-build-image.sh') }}
+
+      - name: Build FFmpeg
+        run: |
+          source /opt/rh/gcc-toolset-13/enable
+          eng/build-ffmpeg.sh ${{ matrix.rid }}
+
+      # A tarball keeps the libraries' symlinks and the tools' executable bit, which artifacts drop.
+      - name: Pack
+        run: tar -C artifacts/native -czf ffmpeg-${{ matrix.rid }}.tar.gz ${{ matrix.rid }} LICENSE.ffmpeg.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ffmpeg-${{ matrix.rid }}
+          if-no-files-found: error
+          path: ffmpeg-${{ matrix.rid }}.tar.gz
+
   test:
     name: Test (${{ matrix.rid }})
+    needs: [native]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -51,19 +99,30 @@ jobs:
             10.0.x
             11.0.x
 
-      # BtbN's Linux builds reach VA-API through a stub that aborts the process when libva is missing,
-      # even for tests that never open a device. lavapipe is the software Vulkan the Vulkan tests use.
+      # The Linux libraries link the system's libva and libdrm, as drivers expect. lavapipe is the
+      # software Vulkan the Vulkan tests use.
       - name: Install libva and a software Vulkan driver (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libva2 libva-drm2 libvulkan1 mesa-vulkan-drivers
+          sudo apt-get install -y --no-install-recommends libva2 libva-drm2 libdrm2 libvulkan1 mesa-vulkan-drivers
+
+      - name: Take the FFmpeg built above (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-${{ matrix.rid }}
+
+      - name: Unpack it (Linux)
+        if: runner.os == 'Linux'
+        run: mkdir -p native && tar -C native -xzf ffmpeg-${{ matrix.rid }}.tar.gz
 
       - name: Install FFmpeg (macOS)
         if: runner.os == 'macOS'
         run: brew install ffmpeg
 
       - name: Fetch the pinned FFmpeg build
+        if: runner.os != 'Linux'
         shell: pwsh
         run: ./eng/fetch-ffmpeg.ps1 -Rid ${{ matrix.rid }}
 
