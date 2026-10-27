@@ -355,6 +355,39 @@ public sealed class StreamingTests
     }
 
     [TestMethod]
+    public unsafe void Logging_BelowTheLoggersLevel_AllocatesNothing()
+    {
+        // FFmpeg passes the message on; the logger does not want it. Decoders log every frame at such
+        // levels, so turning one away must cost no string.
+        FFmpegLogLevel previous = FFmpegLogging.Level;
+        try
+        {
+            FFmpegLogging.UseLoggerFactory(
+                Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance
+            );
+            FFmpegLogging.Level = FFmpegLogLevel.Debug;
+            using Decoder decoder = Decoder.Create(Codec.FindDecoder(CodecId.H264));
+            using Utf8String message = new("a decoder's per-frame note\n");
+            void* context = decoder.NativePointer;
+
+            // Without arguments the format never reads the argument list.
+            LibAVUtil.av_vlog(context, LibAVUtil.AV_LOG_DEBUG, message, null);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++)
+            {
+                LibAVUtil.av_vlog(context, LibAVUtil.AV_LOG_DEBUG, message, null);
+            }
+
+            Assert.AreEqual(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+        finally
+        {
+            FFmpegLogging.UseLoggerFactory(null);
+            FFmpegLogging.Level = previous;
+        }
+    }
+
+    [TestMethod]
     public void Logging_Demoted_LogsAtDebugUntilTheScopeEnds()
     {
         CapturingLoggerFactory factory = new();

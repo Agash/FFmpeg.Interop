@@ -54,9 +54,10 @@ public static unsafe class FFmpegLogging
     private const int LineCapacity = 1024;
 
     private static readonly Lock s_gate = new();
-    private static readonly ConcurrentDictionary<string, ILogger> s_loggers = new(
-        StringComparer.Ordinal
-    );
+
+    // Loggers by the class_name pointer of a context's AVClass, a static string in FFmpeg, so a message
+    // below the logger's level costs no string; 0 for messages without a context.
+    private static readonly ConcurrentDictionary<nint, ILogger> s_loggers = new();
     private static ILoggerFactory? s_factory;
 
     // FFmpeg writes one line in several calls when it builds it piece by piece (stream dumps, progress);
@@ -185,11 +186,11 @@ public static unsafe class FFmpegLogging
                 return;
             }
 
-            (string category, string? component) = Describe(context);
+            AVClass* avClass = context is null ? null : *(AVClass**)context;
             ILogger logger = s_loggers.GetOrAdd(
-                category,
-                static (name, f) => f.CreateLogger(name),
-                factory
+                avClass is null ? 0 : (nint)avClass->class_name,
+                static (_, state) => state.Factory.CreateLogger(Category(state.Class)),
+                (Factory: factory, Class: (nint)avClass)
             );
             LogLevel logLevel = ToLogLevel(level);
             if (t_demotions > 0 && logLevel > LogLevel.Debug)
@@ -203,6 +204,10 @@ public static unsafe class FFmpegLogging
             }
 
             // No FFmpeg prefix ("[h264 @ 0x...]"): the component is a property of its own.
+            string? component =
+                avClass is null || avClass->item_name is null
+                    ? null
+                    : NativeString.Read(avClass->item_name(context));
             byte* line = stackalloc byte[LineCapacity];
             int printPrefix = 0;
             int length = av_log_format_line2(
@@ -250,19 +255,12 @@ public static unsafe class FFmpegLogging
 
     // A log context is a struct whose first member is its AVClass: the class names the component type,
     // item_name the instance.
-    private static (string Category, string? Component) Describe(void* context)
+    // The logger category of a context's class: "FFmpeg.<class name>".
+    private static string Category(nint avClass)
     {
-        AVClass* avClass = context is null ? null : *(AVClass**)context;
-        if (avClass is null)
-        {
-            return ("FFmpeg", null);
-        }
-
-        string? className = NativeString.Read(avClass->class_name);
-        string? itemName = avClass->item_name is null
-            ? null
-            : NativeString.Read(avClass->item_name(context));
-        return (className is null ? "FFmpeg" : $"FFmpeg.{className}", itemName);
+        string? className =
+            avClass == 0 ? null : NativeString.Read(((AVClass*)avClass)->class_name);
+        return className is null ? "FFmpeg" : $"FFmpeg.{className}";
     }
 
     internal static LogLevel ToLogLevel(int level) =>
