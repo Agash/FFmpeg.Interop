@@ -40,6 +40,24 @@ case "$rid" in
       failed=1
     fi
     if [[ $rid == linux-arm64 ]]; then
+      # MPP is in every process that loads libavcodec, Rockchip board or not: a codec that finds no
+      # engine fails to open, and the process still exits cleanly.
+      for codec in h264_rkmpp hevc_rkmpp; do
+        status=0
+        "$ffmpeg" -hide_banner -loglevel quiet -f lavfi -i testsrc2=d=0.1 -c:v $codec -f null - || status=$?
+        if (( status >= 128 )); then
+          echo "opening $codec without a Rockchip engine killed ffmpeg (signal $((status - 128)))" >&2
+          failed=1
+        fi
+      done
+      status=0
+      "$ffmpeg" -hide_banner -loglevel quiet -f lavfi -i testsrc2=d=0.2 -c:v libopenh264 -f h264 "$dir/rkmpp.h264"
+      "$ffmpeg" -hide_banner -loglevel quiet -c:v h264_rkmpp -i "$dir/rkmpp.h264" -f null - || status=$?
+      rm -f "$dir/rkmpp.h264"
+      if (( status >= 128 )); then
+        echo "opening h264_rkmpp to decode without a Rockchip engine killed ffmpeg (signal $((status - 128)))" >&2
+        failed=1
+      fi
       need encoder "$("$ffmpeg" -hide_banner -encoders)" h264_rkmpp hevc_rkmpp
       need decoder "$("$ffmpeg" -hide_banner -decoders)" h264_rkmpp hevc_rkmpp vp8_rkmpp vp9_rkmpp
     fi
