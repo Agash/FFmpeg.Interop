@@ -69,6 +69,27 @@ case "$rid" in
       fi
     done
     ;;
+  osx-*)
+    ffmpeg="$dir/bin/ffmpeg"
+    grep -q "Lesser General Public" <<<"$("$ffmpeg" -hide_banner -L)" || { echo "not LGPL" >&2; failed=1; }
+    if grep -qE -- "--enable-(gpl|nonfree|version3)" <<<"$("$ffmpeg" -hide_banner -buildconf)"; then
+      echo "configured with a component the licence does not allow" >&2
+      failed=1
+    fi
+    need hwaccel "$("$ffmpeg" -hide_banner -hwaccels)" videotoolbox
+    need encoder "$("$ffmpeg" -hide_banner -encoders)" h264_videotoolbox hevc_videotoolbox       libopenh264 libkvazaar libsvtav1 libvpx libvpx-vp9 aac_at
+    need decoder "$("$ffmpeg" -hide_banner -decoders)" libdav1d
+    # Only the system's libraries and frameworks, and FFmpeg's own under @rpath.
+    for dylib in "$dir"/lib/*.dylib; do
+      if [[ -L "$dylib" ]]; then continue; fi
+      while read -r linked; do
+        case "$linked" in
+          /System/Library/*|/usr/lib/*|@rpath/libav*|@rpath/libsw*) ;;
+          *) echo "$(basename "$dylib") links $linked, which is not shipped" >&2; failed=1 ;;
+        esac
+      done <<<"$(otool -L "$dylib" | tail -n +2 | awk '{print $1}')"
+    done
+    ;;
   win-*)
     avcodec="$(echo "$dir"/bin/avcodec-*.dll)"
     avutil="$(echo "$dir"/bin/avutil-*.dll)"
