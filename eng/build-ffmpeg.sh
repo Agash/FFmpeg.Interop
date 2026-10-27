@@ -212,15 +212,11 @@ if [[ $os == linux ]]; then
 fi
 
 # Rockchip's MPP, the hardware codecs of RK3588-class boards, on linux-arm64 only: FFmpeg counts it among
-# its LGPL version 3 libraries, so it makes this one runtime's build LGPL 3 and leaves the others 2.1.
+# its LGPL version 3 libraries, so it makes this one runtime's build LGPL 3 and leaves the others 2.1. It
+# ships as its own shared library beside FFmpeg's: its static archive defines VP9 tables under the names
+# libvpx's use. It finds the hardware at run time, so the libraries load on any arm64 board.
 if [[ $rid == linux-arm64 ]]; then
-  cmake_build mpp "$native" -DBUILD_SHARED_LIBS=OFF -DBUILD_TEST=OFF -DRKPLATFORM=ON -DHAVE_DRM=ON
-  # MPP builds its shared library whatever BUILD_SHARED_LIBS says, and its pkg-config names that; with
-  # the shared one gone, -lrockchip_mpp takes the static archive, under the name it has there.
-  if [[ -f "$prefix/lib/librockchip_mpp_static.a" ]]; then
-    cp "$prefix/lib/librockchip_mpp_static.a" "$prefix/lib/librockchip_mpp.a"
-  fi
-  rm -f "$prefix/lib/"librockchip_{mpp,vpu}.so*
+  cmake_build mpp "$native" -DBUILD_TEST=OFF -DRKPLATFORM=ON -DHAVE_DRM=ON
 fi
 
 # Codec libraries, static, inside FFmpeg's libraries.
@@ -281,7 +277,11 @@ cpu=$([[ $arch == x86_64 ]] && echo x86_64 || echo arm64)
 # libaom, the AV1 reference encoder and decoder.
 cmake_build aom "$native" -DAOM_TARGET_CPU="$cpu" -DENABLE_DOCS=0 -DENABLE_EXAMPLES=0 -DENABLE_TESTS=0 \
   -DENABLE_TESTDATA=0 -DENABLE_TOOLS=0 -DCONFIG_RUNTIME_CPU_DETECT=1 -DBUILD_SHARED_LIBS=0
-meson_build opus "$native" -Ddefault_library=static -Dtests=disabled -Ddocs=disabled -Dextra-programs=disabled
+# Opus finds ARM's optional instructions at run time on Linux and macOS only; on Windows arm64 it takes
+# NEON, which every arm64 processor has, as given.
+opusflags=()
+if [[ $rid == win-arm64 ]]; then opusflags=(-Drtcd=disabled -Dasm=disabled); fi
+meson_build opus "$native" -Ddefault_library=static -Dtests=disabled -Ddocs=disabled -Dextra-programs=disabled "${opusflags[@]}"
 if [[ ! -f "$work/lame.done" ]]; then
   lame="$(fetch "$native" lame)"
   mkdir -p "$work/lame"
@@ -293,6 +293,8 @@ fi
 # zlib, static; macOS links its own.
 if [[ $os != osx ]]; then
   cmake_build zlib "$native" -DZLIB_BUILD_SHARED=OFF -DZLIB_BUILD_TESTING=OFF
+  # zlib's CMake names its static archive libzs on Windows; FFmpeg links -lz.
+  if [[ -f "$prefix/lib/libzs.a" ]]; then cp "$prefix/lib/libzs.a" "$prefix/lib/libz.a"; fi
 fi
 # OpenSSL for TLS, DTLS and HTTPS outside Windows, static and without its tools.
 if [[ $os != win && ! -f "$work/openssl.done" ]]; then
@@ -383,6 +385,7 @@ case $os in
   linux)
     mkdir -p "$out/lib" "$out/bin"
     cp -P "$work/install/lib/"*.so* "$out/lib/"
+    if [[ $rid == linux-arm64 ]]; then cp -P "$prefix/lib/"librockchip_mpp.so* "$out/lib/"; fi
     cp "$work/install/bin/ffmpeg" "$work/install/bin/ffprobe" "$out/bin/"
     # The libraries find each other beside themselves, and the tools find them in ../lib.
     for so in "$out/lib/"*.so.*; do

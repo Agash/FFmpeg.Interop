@@ -72,7 +72,7 @@ case "$rid" in
       [[ -L "$so" ]] && continue
       while read -r needed; do
         case "$needed" in
-          libav*|libsw*|libva.so.2|libva-drm.so.2|libdrm.so.2|libc.so.6|libm.so.6|libpthread.so.0|libdl.so.2             |librt.so.1|libstdc++.so.6|libgcc_s.so.1|ld-linux*) ;;
+          libav*|libsw*|librockchip_mpp.so.*|libva.so.2|libva-drm.so.2|libdrm.so.2|libc.so.6|libm.so.6|libpthread.so.0|libdl.so.2             |librt.so.1|libstdc++.so.6|libgcc_s.so.1|ld-linux*) ;;
           *) echo "$(basename "$so") needs $needed, which is not shipped" >&2; failed=1 ;;
         esac
       done <<<"$(objdump -p "$so" | sed -n 's/^ *NEEDED *//p')"
