@@ -139,32 +139,8 @@ public sealed unsafe class Scaler : IDisposable
                 ? input->chroma_location
                 : frame->chroma_location
         );
-        LibAVUtil.av_frame_unref(frame);
-        frame->width = width;
-        frame->height = height;
-        frame->format = (int)format.Value;
+        _pictures.Allocate(destination, width, height, format);
         color.ApplyTo(frame);
-
-        int size = FFmpegError.ThrowIfError(
-            LibAVUtil.av_image_get_buffer_size(format, width, height, BufferAlignment)
-        );
-        frame->buf.e0 = LibAVUtil.av_buffer_pool_get(Pool(size + Packet.PaddingSize));
-        if (frame->buf.e0 is null)
-        {
-            FFmpegError.ThrowOutOfMemory("av_buffer_pool_get");
-        }
-
-        FFmpegError.ThrowIfError(
-            LibAVUtil.av_image_fill_arrays(
-                (byte**)&frame->data,
-                (int*)&frame->linesize,
-                frame->buf.e0->data,
-                format,
-                width,
-                height,
-                BufferAlignment
-            )
-        );
         FFmpegError.ThrowIfError(sws_scale_frame(NativePointer, frame, input));
         destination.CopyPropertiesFrom(source);
         color.ApplyTo(frame);
@@ -193,24 +169,8 @@ public sealed unsafe class Scaler : IDisposable
     public void Dispose()
     {
         _handle.Dispose();
-        _pool?.Dispose();
+        _pictures.Dispose();
     }
 
-    // Row alignment of pooled pictures: enough for every SIMD path swscale and the encoders take.
-    private const int BufferAlignment = 64;
-
-    private SafeBufferPoolHandle? _pool;
-    private int _poolSize;
-
-    private AVBufferPool* Pool(int size)
-    {
-        if (_pool is null || _poolSize != size)
-        {
-            _pool?.Dispose();
-            _pool = SafeBufferPoolHandle.Create(size);
-            _poolSize = size;
-        }
-
-        return _pool.Pointer;
-    }
+    private readonly FramePool _pictures = new();
 }

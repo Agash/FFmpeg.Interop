@@ -499,6 +499,45 @@ public sealed unsafe class Frame : IDisposable
     }
 
     /// <summary>
+    /// Downloads this hardware frame into <paramref name="destination"/>, a picture from
+    /// <paramref name="pool"/> in the first format the surface transfers to, at the surface pool's size, as
+    /// <see cref="TransferTo"/> with an empty target allocates it, so that downloading every frame
+    /// allocates nothing once warm.
+    /// </summary>
+    /// <param name="destination">The system-memory target; any picture it held is released.</param>
+    /// <param name="pool">Where the picture comes from.</param>
+    public void DownloadTo(Frame destination, FramePool pool)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        ArgumentNullException.ThrowIfNull(pool);
+        AVFrame* source = NativePointer;
+        if (source->hw_frames_ctx is null)
+        {
+            throw new InvalidOperationException("Only a hardware frame is downloaded.");
+        }
+
+        var frames = (AVHWFramesContext*)source->hw_frames_ctx->data;
+        AVPixelFormat* formats = null;
+        FFmpegError.ThrowIfError(
+            av_hwframe_transfer_get_formats(
+                source->hw_frames_ctx,
+                AVHWFrameTransferDirection.AV_HWFRAME_TRANSFER_DIRECTION_FROM,
+                &formats,
+                0
+            )
+        );
+        AVPixelFormat format = formats[0];
+        av_freep(&formats);
+
+        pool.Allocate(destination, frames->width, frames->height, new PixelFormat(format));
+        AVFrame* target = destination.NativePointer;
+        FFmpegError.ThrowIfError(av_hwframe_transfer_data(target, source, 0));
+        FFmpegError.ThrowIfError(av_frame_copy_props(target, source));
+        target->width = source->width;
+        target->height = source->height;
+    }
+
+    /// <summary>
     /// Copies this frame's picture and properties into <paramref name="destination"/>, which already holds
     /// a picture of the same size and format: on the CPU for system-memory frames, on the GPU for two
     /// Vulkan frames of one device. A GPU copy has finished when this returns, so the source may be

@@ -867,5 +867,23 @@ public sealed class HardwareTests
         byte[] back = new byte[downloaded.GetImageSize()];
         _ = downloaded.CopyImageTo(back);
         CollectionAssert.AreEqual(pixels, back);
+
+        // Downloaded into a pooled picture: the same pixels, and a released picture's buffer serves the
+        // next download.
+        using FramePool pictures = new();
+        using Frame pooled = new();
+        surface.DownloadTo(pooled, pictures);
+        Assert.AreEqual(PixelFormat.Nv12, pooled.PixelFormat);
+        Assert.AreEqual(Width, pooled.Width);
+        Assert.AreEqual(Height, pooled.Height);
+        byte[] pooledBack = new byte[pooled.GetImageSize()];
+        _ = pooled.CopyImageTo(pooledBack);
+        CollectionAssert.AreEqual(pixels, pooledBack);
+        nint first = PictureBuffer(pooled);
+        surface.DownloadTo(pooled, pictures);
+        Assert.AreEqual(first, PictureBuffer(pooled), "the buffer came back");
     }
+
+    private static unsafe nint PictureBuffer(Frame frame) =>
+        (nint)frame.NativePointer->buf.e0->data;
 }

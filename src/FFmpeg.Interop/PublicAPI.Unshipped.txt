@@ -448,6 +448,7 @@ FFmpeg.Interop.Frame.CopyImageTo(System.Span<byte> destination, int alignment = 
 FFmpeg.Interop.Frame.CopyPropertiesFrom(FFmpeg.Interop.Frame! source) -> void
 FFmpeg.Interop.Frame.CopyTo(FFmpeg.Interop.Frame! destination) -> void
 FFmpeg.Interop.Frame.Dispose() -> void
+FFmpeg.Interop.Frame.DownloadTo(FFmpeg.Interop.Frame! destination, FFmpeg.Interop.FramePool! pool) -> void
 FFmpeg.Interop.Frame.Duration.get -> long
 FFmpeg.Interop.Frame.Duration.set -> void
 FFmpeg.Interop.Frame.FillBlack() -> void
@@ -488,6 +489,10 @@ FFmpeg.Interop.Frame.TimeBase.set -> void
 FFmpeg.Interop.Frame.TransferTo(FFmpeg.Interop.Frame! destination) -> void
 FFmpeg.Interop.Frame.Width.get -> int
 FFmpeg.Interop.Frame.Width.set -> void
+FFmpeg.Interop.FramePool
+FFmpeg.Interop.FramePool.Allocate(FFmpeg.Interop.Frame! frame, int width, int height, FFmpeg.Interop.PixelFormat format) -> void
+FFmpeg.Interop.FramePool.Dispose() -> void
+FFmpeg.Interop.FramePool.FramePool() -> void
 FFmpeg.Interop.GpuAdapter
 FFmpeg.Interop.GpuAdapter.<Clone>$() -> FFmpeg.Interop.GpuAdapter!
 FFmpeg.Interop.GpuAdapter.DedicatedVideoMemory.get -> long
