@@ -34,7 +34,7 @@ case "$rid" in
     fi
     if [[ $rid == linux-arm64 ]]; then
       need encoder "$("$ffmpeg" -hide_banner -encoders)" h264_rkmpp hevc_rkmpp
-      need decoder "$("$ffmpeg" -hide_banner -decoders)" h264_rkmpp hevc_rkmpp av1_rkmpp
+      need decoder "$("$ffmpeg" -hide_banner -decoders)" h264_rkmpp hevc_rkmpp vp8_rkmpp vp9_rkmpp
     fi
     need hwaccel "$("$ffmpeg" -hide_banner -hwaccels)" vaapi vulkan cuda drm
     need encoder "$("$ffmpeg" -hide_banner -encoders)" \
@@ -106,7 +106,8 @@ case "$rid" in
       || { echo "not LGPL" >&2; failed=1; }
     # Only system DLLs and FFmpeg's own: the codec libraries and the C++ runtime are linked in.
     for dll in "$dir"/bin/*.dll; do
-      imports="$(objdump -p "$dll" | sed -n 's/^\tDLL Name: //p')"
+      # llvm-objdump, from the cross toolchain: the host's binutils read only x64 images.
+      imports="$(llvm-objdump -p "$dll" | sed -n 's/^[[:space:]]*DLL Name: //p')"
       while read -r import; do
         case "${import,,}" in
           av*|sw*|api-ms-win-*|kernel32.dll|user32.dll|advapi32.dll|ole32.dll|oleaut32.dll|shell32.dll \

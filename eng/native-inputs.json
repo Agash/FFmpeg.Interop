@@ -47,7 +47,7 @@
   },
   "linuxUapiDmaBuf": {
     "version": "6.12",
-    "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/include/uapi/linux/dma-buf.h",
+    "url": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/include/uapi/linux/dma-buf.h?h=v6.12",
     "sha256": "f9e4cff5ae3a9e5d9b0db9a22cb98720d4d9d656544e0088d80c17a436c5b8f2"
   },
   "llvmMingw": {
