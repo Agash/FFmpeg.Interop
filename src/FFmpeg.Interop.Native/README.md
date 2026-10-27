@@ -9,8 +9,10 @@ Built in CI from pinned, unmodified upstream sources (`eng/build-ffmpeg.sh`, `en
 - **Windows**: D3D11VA, D3D12VA, DXVA2, Media Foundation, NVENC/NVDEC, AMF, Vulkan, and QSV on x64.
 - **Linux**: VA-API with DRM displays, Vulkan, NVENC/NVDEC, AMF, V4L2 M2M, QSV on x64, and Rockchip MPP on
   arm64; FFmpeg's DMA-BUF synchronisation compiled in; glibc 2.28 and later.
-- **macOS**: VideoToolbox and AudioToolbox, macOS 12 and later.
-- **Software**: OpenH264, SVT-AV1, dav1d, libvpx, kvazaar.
+- **macOS**: VideoToolbox and AudioToolbox, AVFoundation capture, the VideoToolbox and Metal filters,
+  macOS 14 and later.
+- **Software**: OpenH264, SVT-AV1, libaom, dav1d, libvpx, kvazaar, Opus, LAME, zlib (PNG).
+- **TLS** for https, TLS and DTLS: Schannel on Windows, OpenSSL 3 elsewhere.
 
 Licensing: LGPL 2.1 or later, except `linux-arm64`, which is LGPL 3 or later because of Rockchip's MPP.
 No GPL or non-free component is included, and the libraries are shared, so they can be replaced. The

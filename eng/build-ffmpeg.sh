@@ -8,14 +8,15 @@
 #
 # Everything is built from pinned, SHA-256-checked source (eng/native-inputs.json), unmodified. The
 # libraries FFmpeg uses are linked in statically, except libva and libdrm on Linux, whose drivers expect
-# the system's own copies; NVIDIA, AMD, Intel and Vulkan runtimes are opened at run time. The result is
+# the system's own copies, and macOS's own zlib; NVIDIA, AMD, Intel and Vulkan runtimes are opened at run
+# time. TLS is Windows' own Schannel there and OpenSSL elsewhere. The result is
 # LGPL 2.1, except linux-arm64, which Rockchip's MPP makes LGPL 3: no GPL or non-free component is enabled.
 #
 # Linux builds are meant for an old glibc (the CI builds in AlmaLinux 8, glibc 2.28, so the libraries
 # load on distributions and SBC images far older than the runner) with current kernel interfaces: the
 # DMA-BUF header comes from Linux 6.12, so FFmpeg's DMA-BUF synchronisation is compiled in. Windows
 # builds are cross-compiled on Linux with llvm-mingw against the UCRT. macOS builds use Xcode's clang,
-# for macOS 12 and later, either architecture from either.
+# for macOS 14 and later, either architecture from either.
 #
 # Needs a C/C++ toolchain, nasm, cmake, meson, ninja, make, autotools, pkg-config, python3, curl and git,
 # and patchelf for Linux (eng/*-build-image.sh install them).
@@ -125,11 +126,11 @@ EOF
     ;;
   osx)
     darch=$([[ $arch == x86_64 ]] && echo x86_64 || echo arm64)
-    export MACOSX_DEPLOYMENT_TARGET=12.0
+    export MACOSX_DEPLOYMENT_TARGET=14.0
     export CC="clang -arch $darch" CXX="clang++ -arch $darch"
-    export CFLAGS="-O2 -arch $darch -mmacosx-version-min=12.0" CXXFLAGS="-O2 -arch $darch -mmacosx-version-min=12.0"
-    export LDFLAGS="-arch $darch -mmacosx-version-min=12.0"
-    cmake_cross=(-DCMAKE_OSX_ARCHITECTURES="$darch" -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0)
+    export CFLAGS="-O2 -arch $darch -mmacosx-version-min=14.0" CXXFLAGS="-O2 -arch $darch -mmacosx-version-min=14.0"
+    export LDFLAGS="-arch $darch -mmacosx-version-min=14.0"
+    cmake_cross=(-DCMAKE_OSX_ARCHITECTURES="$darch" -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0)
     if [[ "$(uname -m)" != "$darch" ]]; then
       triple="$arch-apple-darwin"
       cat > "$work/cross.ini" <<EOF
@@ -214,6 +215,12 @@ fi
 # its LGPL version 3 libraries, so it makes this one runtime's build LGPL 3 and leaves the others 2.1.
 if [[ $rid == linux-arm64 ]]; then
   cmake_build mpp "$native" -DBUILD_SHARED_LIBS=OFF -DBUILD_TEST=OFF -DRKPLATFORM=ON -DHAVE_DRM=ON
+  # MPP builds its shared library whatever BUILD_SHARED_LIBS says, and its pkg-config names that; with
+  # the shared one gone, -lrockchip_mpp takes the static archive, under the name it has there.
+  if [[ -f "$prefix/lib/librockchip_mpp_static.a" ]]; then
+    cp "$prefix/lib/librockchip_mpp_static.a" "$prefix/lib/librockchip_mpp.a"
+  fi
+  rm -f "$prefix/lib/"librockchip_{mpp,vpu}.so*
 fi
 
 # Codec libraries, static, inside FFmpeg's libraries.
@@ -270,6 +277,37 @@ if [[ ! -f "$work/libvpx.done" ]]; then
     && make install >>"$log" 2>&1)
   touch "$work/libvpx.done"
 fi
+cpu=$([[ $arch == x86_64 ]] && echo x86_64 || echo arm64)
+# libaom, the AV1 reference encoder and decoder.
+cmake_build aom "$native" -DAOM_TARGET_CPU="$cpu" -DENABLE_DOCS=0 -DENABLE_EXAMPLES=0 -DENABLE_TESTS=0 \
+  -DENABLE_TESTDATA=0 -DENABLE_TOOLS=0 -DCONFIG_RUNTIME_CPU_DETECT=1 -DBUILD_SHARED_LIBS=0
+meson_build opus "$native" -Ddefault_library=static -Dtests=disabled -Ddocs=disabled -Dextra-programs=disabled
+if [[ ! -f "$work/lame.done" ]]; then
+  lame="$(fetch "$native" lame)"
+  mkdir -p "$work/lame"
+  (cd "$work/lame" && "$lame/configure" ${triple:+--host=$triple} --prefix="$prefix" --libdir="$prefix/lib" \
+    --disable-shared --enable-static --with-pic --disable-frontend --disable-gtktest >>"$log" 2>&1 \
+    && make -j"$jobs" >>"$log" 2>&1 && make install >>"$log" 2>&1)
+  touch "$work/lame.done"
+fi
+# zlib, static; macOS links its own.
+if [[ $os != osx ]]; then
+  cmake_build zlib "$native" -DZLIB_BUILD_SHARED=OFF -DZLIB_BUILD_TESTING=OFF
+fi
+# OpenSSL for TLS, DTLS and HTTPS outside Windows, static and without its tools.
+if [[ $os != win && ! -f "$work/openssl.done" ]]; then
+  case "$rid" in
+    linux-x64) ssltarget=linux-x86_64 ;;
+    linux-arm64) ssltarget=linux-aarch64 ;;
+    osx-x64) ssltarget=darwin64-x86_64-cc ;;
+    osx-arm64) ssltarget=darwin64-arm64-cc ;;
+  esac
+  openssl="$(fetch "$native" openssl)"
+  mkdir -p "$work/openssl"
+  (cd "$work/openssl" && "$openssl/Configure" "$ssltarget" --prefix="$prefix" --libdir=lib no-shared no-tests \
+    no-docs no-apps no-module >>"$log" 2>&1 && make -j"$jobs" >>"$log" 2>&1 && make install_sw >>"$log" 2>&1)
+  touch "$work/openssl.done"
+fi
 
 # FFmpeg: every feature named, nothing autodetected, so a missing dependency fails here instead of
 # silently dropping a backend.
@@ -278,6 +316,7 @@ common=(
   --disable-doc --disable-ffplay --disable-debug
   --pkg-config-flags=--static --extra-cflags="-I$prefix/include"
   --enable-libdav1d --enable-libsvtav1 --enable-libopenh264 --enable-libkvazaar --enable-libvpx
+  --enable-libaom --enable-libopus --enable-libmp3lame --enable-zlib
 )
 # NVIDIA's, AMD's and Vulkan's codecs on Windows and Linux; Intel's QSV on their x64 builds.
 if [[ $os != osx ]]; then
@@ -292,15 +331,17 @@ case $os in
       --cc="$triple-clang" --cxx="$triple-clang++" --ar=llvm-ar --ranlib=llvm-ranlib --nm=llvm-nm --strip=llvm-strip
       --pkg-config=pkg-config --extra-ldflags="-L$prefix/lib" --extra-libs="-lc++ -lunwind" --extra-cflags=-DKVZ_STATIC_LIB
       --enable-w32threads --enable-d3d11va --enable-d3d12va --enable-dxva2 --enable-mediafoundation
+      --enable-schannel
     )
     ;;
   osx)
     # Installed names under @rpath: the libraries find each other beside themselves, the tools in ../lib.
     platform=(
       --arch="$darch" --cc="clang -arch $darch" --cxx="clang++ -arch $darch"
-      --extra-cflags="-mmacosx-version-min=12.0" --extra-ldflags="-L$prefix/lib -mmacosx-version-min=12.0"
+      --extra-cflags="-mmacosx-version-min=14.0" --extra-ldflags="-L$prefix/lib -mmacosx-version-min=14.0"
       --extra-libs="-lc++" --install-name-dir=@rpath --extra-ldsoflags=-Wl,-rpath,@loader_path
-      --enable-pthreads --enable-videotoolbox --enable-audiotoolbox
+      --enable-pthreads --enable-videotoolbox --enable-audiotoolbox --enable-avfoundation --enable-coreimage
+      --enable-appkit --enable-metal --enable-openssl
     )
     if [[ -n $triple ]]; then platform+=(--enable-cross-compile --target-os=darwin); fi
     ;;
@@ -311,7 +352,7 @@ case $os in
       --extra-cflags="-D_FORTIFY_SOURCE=2 -fstack-protector-strong -fstack-clash-protection"
       --extra-ldflags="-L$prefix/lib -Wl,-rpath-link,$prefix/lib -Wl,-z,relro,-z,now"
       --extra-libs="-lstdc++ -lm -lpthread -ldl"
-      --enable-pthreads --enable-libdrm --enable-vaapi --enable-v4l2-m2m
+      --enable-pthreads --enable-libdrm --enable-vaapi --enable-v4l2-m2m --enable-openssl
     )
     ;;
 esac

@@ -25,13 +25,25 @@
     <PackageId>FFmpeg.Interop.Native.$(NativeRuntime)</PackageId>
     <Description>FFmpeg 9 shared libraries for $(NativeRuntime), the build FFmpeg.Interop is generated from: hardware codecs for every API the platform has, the LGPL software codecs (OpenH264, SVT-AV1, dav1d, libvpx, kvazaar), built from pinned upstream sources.</Description>
     <!-- Rockchip's MPP, on linux-arm64 only, is in FFmpeg's LGPL 3 group. -->
-    <PackageLicenseExpression Condition="'$(NativeRuntime)' == 'linux-arm64'">LGPL-3.0-or-later</PackageLicenseExpression>
-    <PackageLicenseExpression Condition="'$(NativeRuntime)' != 'linux-arm64'">LGPL-2.1-or-later</PackageLicenseExpression>
+    <PackageLicenseExpression Condition="'$(NativeRuntime)' == 'linux-arm64'"
+      >LGPL-3.0-or-later</PackageLicenseExpression>
+    <PackageLicenseExpression Condition="'$(NativeRuntime)' != 'linux-arm64'"
+      >LGPL-2.1-or-later</PackageLicenseExpression>
   </PropertyGroup>
   <ItemGroup Condition="'$(NativeRuntime)' != ''">
     <!-- The libraries only: lib/ on Linux and macOS, the DLLs in bin/ on Windows; the tools stay out. -->
-    <None Include="$(Native)lib/*" Pack="true" PackagePath="runtimes/$(NativeRuntime)/native/" Visible="false" />
-    <None Include="$(Native)bin/*.dll" Pack="true" PackagePath="runtimes/$(NativeRuntime)/native/" Visible="false" />
+    <None
+      Include="$(Native)lib/*"
+      Pack="true"
+      PackagePath="runtimes/$(NativeRuntime)/native/"
+      Visible="false"
+    />
+    <None
+      Include="$(Native)bin/*.dll"
+      Pack="true"
+      PackagePath="runtimes/$(NativeRuntime)/native/"
+      Visible="false"
+    />
     <None Include="$(Native)LICENSE.ffmpeg.txt" Pack="true" PackagePath="" Visible="false" />
   </ItemGroup>
 
@@ -41,7 +53,12 @@
     <PackageId>FFmpeg.Interop.Native</PackageId>
     <NuspecFile>FFmpeg.Interop.Native.nuspec</NuspecFile>
   </PropertyGroup>
-  <Target Name="SetNuspecProperties" BeforeTargets="_GetOutputItemsFromPack;GenerateNuspec" DependsOnTargets="MinVer" Condition="'$(NativeRuntime)' == ''">
+  <Target
+    Name="SetNuspecProperties"
+    BeforeTargets="_GetOutputItemsFromPack;GenerateNuspec"
+    DependsOnTargets="MinVer"
+    Condition="'$(NativeRuntime)' == ''"
+  >
     <PropertyGroup>
       <NuspecProperties>version=$(PackageVersion);authors=$(Authors);copyright=$(Copyright);repository=$(RepositoryUrl)</NuspecProperties>
     </PropertyGroup>

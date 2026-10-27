@@ -18,6 +18,13 @@ need() { # <what> <list> <names...>: each name is in the list
   done
 }
 
+# What every runtime has: the software codecs, PNG through zlib, and TLS for https and DTLS.
+common() { # <encoders> <decoders> <protocols>
+  need encoder "$1" libopenh264 libkvazaar libsvtav1 libvpx libvpx-vp9 libaom-av1 libopus libmp3lame png
+  need decoder "$2" libdav1d libaom-av1 libopus png
+  need protocol "$3" tls https dtls
+}
+
 case "$rid" in
   linux-*)
     ffmpeg="$dir/bin/ffmpeg"
@@ -40,7 +47,9 @@ case "$rid" in
     need encoder "$("$ffmpeg" -hide_banner -encoders)" \
       h264_vaapi hevc_vaapi av1_vaapi h264_vulkan hevc_vulkan av1_vulkan \
       h264_nvenc hevc_nvenc av1_nvenc h264_amf hevc_amf av1_amf \
-      libopenh264 libkvazaar libsvtav1 libvpx libvpx-vp9 h264_v4l2m2m hevc_v4l2m2m
+      h264_v4l2m2m hevc_v4l2m2m
+    common "$("$ffmpeg" -hide_banner -encoders)" "$("$ffmpeg" -hide_banner -decoders)"       "$("$ffmpeg" -hide_banner -protocols)"
+    need device "$("$ffmpeg" -hide_banner -devices)" v4l2
     # Intel's QSV, on x64 only.
     if [[ $rid == *-x64 ]]; then
       need hwaccel "$("$ffmpeg" -hide_banner -hwaccels)" qsv
@@ -57,6 +66,17 @@ case "$rid" in
     # kernel headers older than Linux 6.0.
     grep -q "Failed to retrieve implicit DRM sync file" "$dir"/lib/libavutil.so.* \
       || { echo "missing DMA-BUF synchronisation in libavutil" >&2; failed=1; }
+    # Only the system's libraries and FFmpeg's own: a dependency linked shared by mistake loads here,
+    # from the build, and nowhere else.
+    for so in "$dir"/lib/*.so.*; do
+      [[ -L "$so" ]] && continue
+      while read -r needed; do
+        case "$needed" in
+          libav*|libsw*|libva.so.2|libva-drm.so.2|libdrm.so.2|libc.so.6|libm.so.6|libpthread.so.0|libdl.so.2             |librt.so.1|libstdc++.so.6|libgcc_s.so.1|ld-linux*) ;;
+          *) echo "$(basename "$so") needs $needed, which is not shipped" >&2; failed=1 ;;
+        esac
+      done <<<"$(objdump -p "$so" | sed -n 's/^ *NEEDED *//p')"
+    done
     # Nothing newer than the build image's glibc, so the libraries load where it does.
     glibc="$(getconf GNU_LIBC_VERSION | cut -d' ' -f2)"
     for so in "$dir"/lib/*.so.*; do
@@ -77,8 +97,10 @@ case "$rid" in
       failed=1
     fi
     need hwaccel "$("$ffmpeg" -hide_banner -hwaccels)" videotoolbox
-    need encoder "$("$ffmpeg" -hide_banner -encoders)" h264_videotoolbox hevc_videotoolbox       libopenh264 libkvazaar libsvtav1 libvpx libvpx-vp9 aac_at
-    need decoder "$("$ffmpeg" -hide_banner -decoders)" libdav1d
+    need encoder "$("$ffmpeg" -hide_banner -encoders)" h264_videotoolbox hevc_videotoolbox aac_at
+    common "$("$ffmpeg" -hide_banner -encoders)" "$("$ffmpeg" -hide_banner -decoders)"       "$("$ffmpeg" -hide_banner -protocols)"
+    need device "$("$ffmpeg" -hide_banner -devices)" avfoundation audiotoolbox
+    need filter "$("$ffmpeg" -hide_banner -filters)" scale_vt transpose_vt yadif_videotoolbox coreimage
     # Only the system's libraries and frameworks, and FFmpeg's own under @rpath.
     for dylib in "$dir"/lib/*.dylib; do
       if [[ -L "$dylib" ]]; then continue; fi
@@ -96,7 +118,10 @@ case "$rid" in
     codecs="$(strings -n 6 "$avcodec")"
     need encoder "$codecs" h264_nvenc hevc_nvenc av1_nvenc h264_amf hevc_amf av1_amf \
       h264_mf hevc_mf h264_d3d12va hevc_d3d12va h264_vulkan hevc_vulkan av1_vulkan \
-      libopenh264 libkvazaar libsvtav1 libvpx libdav1d
+      libopenh264 libkvazaar libsvtav1 libvpx libdav1d libaom-av1 libopus libmp3lame
+    need decoder "$codecs" libaom-av1 libopus png zlib
+    need protocol "$(strings -n 4 "$(echo "$dir"/bin/avformat-*.dll)")" https dtls
+    need device "$(strings -n 4 "$(echo "$dir"/bin/avdevice-*.dll)")" dshow gdigrab
     need hwaccel "$codecs" h264_d3d11va h264_d3d12va h264_dxva2 h264_vulkan av1_d3d12va
     need "device type" "$(strings -n 4 "$avutil")" d3d11va d3d12va dxva2 vulkan cuda amf
     if [[ $rid == *-x64 ]]; then
