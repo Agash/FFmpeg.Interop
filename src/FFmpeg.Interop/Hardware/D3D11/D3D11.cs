@@ -56,6 +56,41 @@ internal static unsafe class D3D11
         );
     }
 
+    // Queues a GPU wait on the context for a fence (an ID3D11Fence of the context's device) to reach a
+    // value: work the context records after it runs once the producer's work is done, and the CPU never
+    // waits.
+    public static void Wait(nint context, nint fence, ulong value)
+    {
+        Guid iid = typeof(ID3D11DeviceContext4).GUID;
+        Marshal.ThrowExceptionForHR(Marshal.QueryInterface(context, in iid, out nint queued));
+        try
+        {
+            ((ID3D11DeviceContext4*)queued)->Wait((ID3D11Fence*)fence, value);
+        }
+        finally
+        {
+            _ = Marshal.Release(queued);
+        }
+    }
+
+    // Queues a signal of a fence on the context: it reaches the value once the work recorded before it
+    // has run. The context is flushed, since Direct3D 11 batches its commands and another API's queue
+    // waiting on the fence would otherwise wait for whatever submits them next.
+    public static void Signal(nint context, nint fence, ulong value)
+    {
+        Guid iid = typeof(ID3D11DeviceContext4).GUID;
+        Marshal.ThrowExceptionForHR(Marshal.QueryInterface(context, in iid, out nint queued));
+        try
+        {
+            ((ID3D11DeviceContext4*)queued)->Signal((ID3D11Fence*)fence, value);
+            ((ID3D11DeviceContext4*)queued)->Flush();
+        }
+        finally
+        {
+            _ = Marshal.Release(queued);
+        }
+    }
+
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void ReleaseTexture(void* opaque, byte* data) => _ = Dxgi.Release((nint)data);
 }

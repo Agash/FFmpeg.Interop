@@ -204,6 +204,19 @@ FFmpeg.Interop.D3D11Device.VideoContext.get -> nint
 FFmpeg.Interop.D3D11Device.VideoContext.init -> void
 FFmpeg.Interop.D3D11Device.VideoDevice.get -> nint
 FFmpeg.Interop.D3D11Device.VideoDevice.init -> void
+FFmpeg.Interop.D3D11FenceSync
+FFmpeg.Interop.D3D11FenceSync.D3D11FenceSync() -> void
+FFmpeg.Interop.D3D11FenceSync.D3D11FenceSync(nint Wait, ulong WaitValue, nint Signal = 0, ulong SignalValue = 0) -> void
+FFmpeg.Interop.D3D11FenceSync.Deconstruct(out nint Wait, out ulong WaitValue, out nint Signal, out ulong SignalValue) -> void
+FFmpeg.Interop.D3D11FenceSync.Equals(FFmpeg.Interop.D3D11FenceSync other) -> bool
+FFmpeg.Interop.D3D11FenceSync.Signal.get -> nint
+FFmpeg.Interop.D3D11FenceSync.Signal.init -> void
+FFmpeg.Interop.D3D11FenceSync.SignalValue.get -> ulong
+FFmpeg.Interop.D3D11FenceSync.SignalValue.init -> void
+FFmpeg.Interop.D3D11FenceSync.Wait.get -> nint
+FFmpeg.Interop.D3D11FenceSync.Wait.init -> void
+FFmpeg.Interop.D3D11FenceSync.WaitValue.get -> ulong
+FFmpeg.Interop.D3D11FenceSync.WaitValue.init -> void
 FFmpeg.Interop.D3D11Texture
 FFmpeg.Interop.D3D11Texture.ArraySlice.get -> int
 FFmpeg.Interop.D3D11Texture.ArraySlice.init -> void
@@ -220,6 +233,7 @@ FFmpeg.Interop.D3D11VAExtensions.extension(FFmpeg.Interop.HardwareDevice!)
 FFmpeg.Interop.D3D11VAExtensions.extension(FFmpeg.Interop.HardwareDevice!).TryGetD3D11(out FFmpeg.Interop.D3D11Device objects) -> bool
 FFmpeg.Interop.D3D11VAExtensions.extension(FFmpeg.Interop.HardwareFramePool!)
 FFmpeg.Interop.D3D11VAExtensions.extension(FFmpeg.Interop.HardwareFramePool!).CopyFromD3D11Texture(nint texture, int subresource, FFmpeg.Interop.Frame! destination) -> void
+FFmpeg.Interop.D3D11VAExtensions.extension(FFmpeg.Interop.HardwareFramePool!).CopyFromD3D11Texture(nint texture, int subresource, FFmpeg.Interop.Frame! destination, FFmpeg.Interop.D3D11FenceSync sync) -> void
 FFmpeg.Interop.D3D11VAExtensions.extension(FFmpeg.Interop.HardwareFramePool!).WrapD3D11Texture(nint texture, int subresource, FFmpeg.Interop.Frame! destination) -> void
 FFmpeg.Interop.D3D12Device
 FFmpeg.Interop.D3D12Device.D3D12Device() -> void
@@ -530,6 +544,7 @@ FFmpeg.Interop.HardwareDevice.Derive(FFmpeg.Interop.HardwareDeviceType type) -> 
 FFmpeg.Interop.HardwareDevice.Dispose() -> void
 FFmpeg.Interop.HardwareDevice.GetFrameConstraints() -> FFmpeg.Interop.HardwareFrameConstraints!
 FFmpeg.Interop.HardwareDevice.NativePointer.get -> FFmpeg.Interop.Native.AVBufferRef*
+FFmpeg.Interop.HardwareDevice.Share() -> FFmpeg.Interop.HardwareDevice!
 FFmpeg.Interop.HardwareDevice.SurfaceFormat.get -> FFmpeg.Interop.PixelFormat
 FFmpeg.Interop.HardwareDevice.Type.get -> FFmpeg.Interop.HardwareDeviceType
 FFmpeg.Interop.HardwareDeviceType
@@ -7292,6 +7307,7 @@ override FFmpeg.Interop.Codec.ToString() -> string!
 override FFmpeg.Interop.CodecId.GetHashCode() -> int
 override FFmpeg.Interop.CodecId.ToString() -> string!
 override FFmpeg.Interop.D3D11Device.GetHashCode() -> int
+override FFmpeg.Interop.D3D11FenceSync.GetHashCode() -> int
 override FFmpeg.Interop.D3D11Texture.GetHashCode() -> int
 override FFmpeg.Interop.D3D12Device.GetHashCode() -> int
 override FFmpeg.Interop.D3D12Texture.GetHashCode() -> int
@@ -7385,9 +7401,12 @@ static FFmpeg.Interop.CudaExtensions.TryGetCudaContext(this FFmpeg.Interop.Hardw
 static FFmpeg.Interop.CudaExtensions.TryGetCudaPlane(this FFmpeg.Interop.Frame! frame, int plane, out nint devicePointer, out int pitch) -> bool
 static FFmpeg.Interop.D3D11Device.operator !=(FFmpeg.Interop.D3D11Device left, FFmpeg.Interop.D3D11Device right) -> bool
 static FFmpeg.Interop.D3D11Device.operator ==(FFmpeg.Interop.D3D11Device left, FFmpeg.Interop.D3D11Device right) -> bool
+static FFmpeg.Interop.D3D11FenceSync.operator !=(FFmpeg.Interop.D3D11FenceSync left, FFmpeg.Interop.D3D11FenceSync right) -> bool
+static FFmpeg.Interop.D3D11FenceSync.operator ==(FFmpeg.Interop.D3D11FenceSync left, FFmpeg.Interop.D3D11FenceSync right) -> bool
 static FFmpeg.Interop.D3D11Texture.operator !=(FFmpeg.Interop.D3D11Texture left, FFmpeg.Interop.D3D11Texture right) -> bool
 static FFmpeg.Interop.D3D11Texture.operator ==(FFmpeg.Interop.D3D11Texture left, FFmpeg.Interop.D3D11Texture right) -> bool
 static FFmpeg.Interop.D3D11VAExtensions.CopyFromD3D11Texture(this FFmpeg.Interop.HardwareFramePool! pool, nint texture, int subresource, FFmpeg.Interop.Frame! destination) -> void
+static FFmpeg.Interop.D3D11VAExtensions.CopyFromD3D11Texture(this FFmpeg.Interop.HardwareFramePool! pool, nint texture, int subresource, FFmpeg.Interop.Frame! destination, FFmpeg.Interop.D3D11FenceSync sync) -> void
 static FFmpeg.Interop.D3D11VAExtensions.FromD3D11Device(nint device) -> FFmpeg.Interop.HardwareDevice!
 static FFmpeg.Interop.D3D11VAExtensions.FromD3D11Texture(nint texture) -> FFmpeg.Interop.HardwareDevice!
 static FFmpeg.Interop.D3D11VAExtensions.TryGetD3D11(this FFmpeg.Interop.HardwareDevice! device, out FFmpeg.Interop.D3D11Device objects) -> bool
@@ -8289,6 +8308,8 @@ virtual FFmpeg.Interop.EncoderOptions.PrintMembers(System.Text.StringBuilder! bu
 ~override FFmpeg.Interop.CodecId.Equals(object obj) -> bool
 ~override FFmpeg.Interop.D3D11Device.Equals(object obj) -> bool
 ~override FFmpeg.Interop.D3D11Device.ToString() -> string
+~override FFmpeg.Interop.D3D11FenceSync.Equals(object obj) -> bool
+~override FFmpeg.Interop.D3D11FenceSync.ToString() -> string
 ~override FFmpeg.Interop.D3D11Texture.Equals(object obj) -> bool
 ~override FFmpeg.Interop.D3D11Texture.ToString() -> string
 ~override FFmpeg.Interop.D3D12Device.Equals(object obj) -> bool
@@ -8309,4 +8330,3 @@ virtual FFmpeg.Interop.EncoderOptions.PrintMembers(System.Text.StringBuilder! bu
 ~override FFmpeg.Interop.SampleFormat.Equals(object obj) -> bool
 ~override FFmpeg.Interop.VulkanDevice.Equals(object obj) -> bool
 ~override FFmpeg.Interop.VulkanDevice.ToString() -> string
-FFmpeg.Interop.HardwareDevice.Share() -> FFmpeg.Interop.HardwareDevice!

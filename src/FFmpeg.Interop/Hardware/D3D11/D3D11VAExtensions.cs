@@ -89,7 +89,7 @@ public static unsafe class D3D11VAExtensions
         /// <param name="texture">
         /// The <c>ID3D11Texture2D*</c>: on this pool's device, in the pool's DXGI format, and exactly the
         /// pool's size, since an encoder reads the whole texture. A larger one is copied with
-        /// <see cref="CopyFromD3D11Texture"/>.
+        /// <see cref="CopyFromD3D11Texture(HardwareFramePool, nint, int, Frame)"/>.
         /// </param>
         /// <param name="subresource">The array slice the picture is in; zero for a single texture.</param>
         /// <param name="destination">
@@ -151,7 +151,27 @@ public static unsafe class D3D11VAExtensions
         /// </param>
         /// <param name="subresource">The source subresource: the array slice, for a texture array.</param>
         /// <param name="destination">The frame to receive the surface; its previous content is released.</param>
-        public void CopyFromD3D11Texture(nint texture, int subresource, Frame destination)
+        public void CopyFromD3D11Texture(nint texture, int subresource, Frame destination) =>
+            pool.CopyFromD3D11Texture(texture, subresource, destination, default);
+
+        /// <summary>
+        /// Copies a Direct3D 11 texture another queue writes into a surface from this pool, ordered on the
+        /// GPU on both sides: the device's context waits for the producer's fence before the copy and
+        /// signals the consumer's fence after it, so the producer reuses the texture only once it is read,
+        /// and no one waits on the CPU. The way to take a texture another API rendered into, shared with
+        /// fences (a Direct3D 12 queue's work, opened on this device with <c>OpenSharedResource1</c> and
+        /// <c>OpenSharedFence</c>), as OBS takes its Direct3D 11 textures into NVENC.
+        /// </summary>
+        /// <param name="texture">The <c>ID3D11Texture2D*</c>, on this pool's device, as for the copy above.</param>
+        /// <param name="subresource">The source subresource.</param>
+        /// <param name="destination">The frame to receive the surface; its previous content is released.</param>
+        /// <param name="sync">The fences to wait for and to signal; either may be zero.</param>
+        public void CopyFromD3D11Texture(
+            nint texture,
+            int subresource,
+            Frame destination,
+            D3D11FenceSync sync
+        )
         {
             _ = CheckD3D11Texture(pool, texture, subresource, destination);
             AVD3D11VADeviceContext* device = (AVD3D11VADeviceContext*)
@@ -181,6 +201,11 @@ public static unsafe class D3D11VAExtensions
             device->@lock(device->lock_ctx);
             try
             {
+                if (sync.Wait != 0)
+                {
+                    D3D11.Wait((nint)device->device_context, sync.Wait, sync.WaitValue);
+                }
+
                 D3D11.CopySubresourceRegion(
                     (nint)device->device_context,
                     surface.Texture,
@@ -190,6 +215,10 @@ public static unsafe class D3D11VAExtensions
                     (uint)pool.Width,
                     (uint)pool.Height
                 );
+                if (sync.Signal != 0)
+                {
+                    D3D11.Signal((nint)device->device_context, sync.Signal, sync.SignalValue);
+                }
             }
             finally
             {
@@ -280,3 +309,18 @@ public readonly record struct D3D11Device(
 /// <param name="Texture">The <c>ID3D11Texture2D*</c>, not AddRef'd: valid while the frame holds it.</param>
 /// <param name="ArraySlice">The slice of the texture array the picture is in.</param>
 public readonly record struct D3D11Texture(nint Texture, int ArraySlice);
+
+/// <summary>
+/// The fences a copy of a shared Direct3D 11 texture is ordered by on the GPU: the producer's, waited for
+/// before the copy, and the consumer's, signalled after it so the producer knows when the texture is free.
+/// </summary>
+/// <param name="Wait">The producer's <c>ID3D11Fence*</c> on the copying device; zero for none.</param>
+/// <param name="WaitValue">The value it reaches once the texture is written.</param>
+/// <param name="Signal">The <c>ID3D11Fence*</c> to signal once the copy has read the texture; zero for none.</param>
+/// <param name="SignalValue">The value to signal.</param>
+public readonly record struct D3D11FenceSync(
+    nint Wait,
+    ulong WaitValue,
+    nint Signal = 0,
+    ulong SignalValue = 0
+);
