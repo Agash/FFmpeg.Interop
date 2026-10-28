@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using FFmpeg.Interop.Native;
@@ -41,7 +40,10 @@ public sealed unsafe partial class VulkanDmaBufExporter : IDisposable
     // Orders the release callback, on any thread, against detaching from a pool.
     private readonly Lock _gate = new();
     private readonly Dictionary<nint, Image> _images = [];
-    private readonly ConcurrentQueue<nint> _returned = new();
+
+    // Pictures released by their readers, under the gate; a queue's buffer is reused where a concurrent
+    // queue would allocate a segment every few dozen frames.
+    private readonly Queue<nint> _returned = new();
     private readonly List<Image> _taking = [];
     private GCHandle _self;
     private AVBufferRef* _pool;
@@ -188,6 +190,11 @@ public sealed unsafe partial class VulkanDmaBufExporter : IDisposable
     public void Flush()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        Drain();
+    }
+
+    private void Drain()
+    {
         if (_work is not { } work)
         {
             return;
@@ -275,7 +282,6 @@ public sealed unsafe partial class VulkanDmaBufExporter : IDisposable
             return;
         }
 
-        Flush();
         _disposed = true;
         Detach();
         _self.Free();
@@ -307,7 +313,7 @@ public sealed unsafe partial class VulkanDmaBufExporter : IDisposable
             return;
         }
 
-        Flush();
+        Drain();
         lock (_gate)
         {
             // Shared pictures not yet returned keep their descriptor, memory and source reference, which
@@ -486,8 +492,17 @@ public sealed unsafe partial class VulkanDmaBufExporter : IDisposable
     // Moves the returned pictures to the list the next submission takes back, with their readers' fences.
     private void Collect()
     {
-        while (_returned.TryDequeue(out nint returned))
+        while (true)
         {
+            nint returned;
+            lock (_gate)
+            {
+                if (!_returned.TryDequeue(out returned))
+                {
+                    break;
+                }
+            }
+
             ReleaseContext* context = (ReleaseContext*)returned;
             Image image = _images[(nint)context->Frame];
             image.Outstanding = false;
