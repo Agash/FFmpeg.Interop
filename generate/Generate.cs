@@ -1071,6 +1071,11 @@ static class Passes
                 "VkImportSemaphoreFdInfoKHR",
                 "VkSemaphoreImportFlagBits",
                 "VkExternalSemaphoreHandleTypeFlagBits",
+                "VkExportSemaphoreCreateInfo",
+                "VkSemaphoreGetFdInfoKHR",
+                "VkMemoryGetFdInfoKHR",
+                "VkImageDrmFormatModifierPropertiesEXT",
+                "VkImageSubresource",
             ],
         };
 

@@ -14,7 +14,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <EnablePackageValidation>true</EnablePackageValidation>
     <PackageId>FFmpeg.Interop</PackageId>
-    <Description>.NET bindings for FFmpeg 9: a managed API for encoding, decoding, hardware acceleration (D3D11, D3D12, CUDA, AMF, VA-API, Vulkan, VideoToolbox), scaling and resampling, over complete source-generated bindings to the native libraries. Native AOT compatible. Bring your own FFmpeg 9 shared libraries.</Description>
+    <Description>.NET bindings for FFmpeg 9: a managed API for encoding, decoding, hardware acceleration (D3D11, D3D12, CUDA, AMF, VA-API, Vulkan, VideoToolbox), scaling and resampling, over complete source-generated bindings to the native libraries. Native AOT compatible. The libraries come with FFmpeg.Interop.Native, or bring your own FFmpeg 9.</Description>
     <PackageTags>ffmpeg;libav;interop;bindings;video;audio;codec;encoder;decoder;hardware;nvenc;amf;vaapi;videotoolbox;d3d12;vulkan;aot</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

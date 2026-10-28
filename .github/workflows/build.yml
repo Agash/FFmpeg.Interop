@@ -22,8 +22,85 @@ env:
   DOTNET_NOLOGO: true
 
 jobs:
+  native:
+    name: FFmpeg (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    # Linux builds in AlmaLinux 8 (glibc 2.28, the manylinux_2_28 baseline), so the libraries load on
+    # distributions and SBC images far older than the runner's own; eng/build-ffmpeg.sh brings current
+    # kernel interfaces. Windows cross-compiles with llvm-mingw on the runner itself.
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-26.04, rid: linux-x64, container: "almalinux:8", image: linux }
+          - { os: ubuntu-26.04-arm, rid: linux-arm64, container: "almalinux:8", image: linux }
+          - { os: ubuntu-26.04, rid: win-x64, image: windows }
+          - { os: ubuntu-26.04, rid: win-arm64, image: windows }
+          - { os: xcode-27, rid: osx-arm64, image: macos }
+          - { os: xcode-27, rid: osx-x64, image: macos }
+    steps:
+      - name: Install git (Linux image)
+        if: matrix.container
+        run: |
+          dnf install -y -q git
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@v7
+
+      - name: Take the libraries built from these sources
+        id: built
+        uses: actions/cache@v5
+        with:
+          path: artifacts/native/${{ matrix.rid }}
+          # Everything a build is made from: an unchanged set takes the finished libraries from here.
+          key: ffmpeg-${{ matrix.rid }}-${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/check-ffmpeg.sh', 'eng/*-build-image.sh') }}
+
+      - name: Install the build image's tools
+        if: steps.built.outputs.cache-hit != 'true'
+        run: |
+          case "${{ matrix.image }}" in
+            linux) eng/linux-build-image.sh ;;
+            windows) sudo eng/windows-build-image.sh ;;
+            macos) eng/macos-build-image.sh ;;
+          esac
+
+      # The pinned sources, the toolchain and the dependencies built from them, for a build that changes
+      # only FFmpeg's own configuration.
+      - name: Take the dependencies
+        if: steps.built.outputs.cache-hit != 'true'
+        uses: actions/cache@v5
+        with:
+          path: |
+            artifacts/obj/ffmpeg/sources
+            artifacts/obj/ffmpeg/host
+            artifacts/obj/ffmpeg/${{ matrix.rid }}/prefix
+            artifacts/obj/ffmpeg/${{ matrix.rid }}/*.done
+          key: ffmpeg-deps-${{ matrix.rid }}-${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/check-ffmpeg.sh', 'eng/*-build-image.sh') }}
+
+      - name: Build FFmpeg
+        if: steps.built.outputs.cache-hit != 'true'
+        run: |
+          case "${{ matrix.image }}" in
+            linux) source /opt/rh/gcc-toolset-13/enable; eng/build-ffmpeg.sh ${{ matrix.rid }} ;;
+            windows) eng/build-ffmpeg.sh ${{ matrix.rid }} ;;
+            # Homebrew's bash: the script uses what macOS's own 3.2 lacks.
+            macos) "$(brew --prefix)/bin/bash" eng/build-ffmpeg.sh ${{ matrix.rid }} ;;
+          esac
+
+      # A tarball keeps the libraries' symlinks and the tools' executable bit, which artifacts drop.
+      - name: Pack
+        run: tar -C artifacts/native -czf ffmpeg-${{ matrix.rid }}.tar.gz ${{ matrix.rid }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ffmpeg-${{ matrix.rid }}
+          if-no-files-found: error
+          path: ffmpeg-${{ matrix.rid }}.tar.gz
+
   test:
     name: Test (${{ matrix.rid }})
+    needs: [native]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -51,21 +128,22 @@ jobs:
             10.0.x
             11.0.x
 
-      # BtbN's Linux builds reach VA-API through a stub that aborts the process when libva is missing,
-      # even for tests that never open a device. lavapipe is the software Vulkan the Vulkan tests use.
+      # The Linux libraries link the system's libva and libdrm, as drivers expect. lavapipe is the
+      # software Vulkan the Vulkan tests use.
       - name: Install libva and a software Vulkan driver (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libva2 libva-drm2 libvulkan1 mesa-vulkan-drivers
+          sudo apt-get install -y --no-install-recommends libva2 libva-drm2 libdrm2 libvulkan1 mesa-vulkan-drivers
 
-      - name: Install FFmpeg (macOS)
-        if: runner.os == 'macOS'
-        run: brew install ffmpeg
+      - name: Take the FFmpeg built above
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-${{ matrix.rid }}
 
-      - name: Fetch the pinned FFmpeg build
-        shell: pwsh
-        run: ./eng/fetch-ffmpeg.ps1 -Rid ${{ matrix.rid }}
+      - name: Unpack it
+        shell: bash
+        run: mkdir -p native && tar -C native -xzf ffmpeg-${{ matrix.rid }}.tar.gz
 
       - name: Restore
         run: dotnet restore FFmpeg.Interop.slnx
@@ -190,7 +268,7 @@ jobs:
 
   pack:
     name: Pack
-    needs: [test, generated]
+    needs: [test, generated, native]
     if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -208,8 +286,21 @@ jobs:
             10.0.x
             11.0.x
 
+      - name: Take every runtime's FFmpeg
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ffmpeg-*
+          merge-multiple: true
+
       - name: Pack
-        run: dotnet pack src/FFmpeg.Interop/FFmpeg.Interop.csproj -c Release -o ${{ env.NuGetDirectory }}
+        run: |
+          mkdir -p artifacts/native
+          for archive in ffmpeg-*.tar.gz; do tar -C artifacts/native -xzf "$archive"; done
+          dotnet pack src/FFmpeg.Interop/FFmpeg.Interop.csproj -c Release -o ${{ env.NuGetDirectory }}
+          for rid in win-x64 win-arm64 linux-x64 linux-arm64 osx-arm64 osx-x64; do
+            dotnet pack src/FFmpeg.Interop.Native/FFmpeg.Interop.Native.csproj -c Release -p:NativeRuntime=$rid -o ${{ env.NuGetDirectory }}
+          done
+          dotnet pack src/FFmpeg.Interop.Native/FFmpeg.Interop.Native.csproj -c Release -o ${{ env.NuGetDirectory }}
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4

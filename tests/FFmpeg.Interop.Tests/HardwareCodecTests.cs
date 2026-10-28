@@ -142,6 +142,31 @@ public sealed class HardwareCodecTests
             sharedAsDmaBufs: true
         );
 
+    // The same pictures shared through VulkanDmaBufExporter: one submission a frame, images taken back
+    // from the reader in the next frame's submission.
+    [TestMethod]
+    [TestCategory("RequiresHardwareDecoder")]
+    [TestCategory("RequiresVulkan")]
+    [OSCondition(OperatingSystems.Linux)]
+    [DataRow("h264", GpuVendor.Nvidia)]
+    [DataRow("hevc", GpuVendor.Nvidia)]
+    [DataRow("av1", GpuVendor.Nvidia)]
+    [DataRow("h264", GpuVendor.Amd)]
+    [DataRow("hevc", GpuVendor.Amd)]
+    [DataRow("av1", GpuVendor.Amd)]
+    public Task VulkanDmaBufExporter_DecodedPictures_AreBitExactWhereShared(
+        string clip,
+        GpuVendor vendor
+    ) =>
+        AssertDecodeMatchesSoftwareAsync(
+            clip,
+            vendor,
+            "vulkan",
+            decoder: null,
+            sharedAsDmaBufs: true,
+            exported: true
+        );
+
     [TestMethod]
     [TestCategory("RequiresHardwareDecoder")]
     [TestCategory("RequiresVideoToolbox")]
@@ -1373,7 +1398,8 @@ public sealed class HardwareCodecTests
         GpuVendor vendor,
         string deviceType,
         string? decoder,
-        bool sharedAsDmaBufs = false
+        bool sharedAsDmaBufs = false,
+        bool exported = false
     )
     {
         string path = await TestMedia.ClipAsync(clip, TestContext.CancellationToken);
@@ -1405,6 +1431,8 @@ public sealed class HardwareCodecTests
             ? HardwareDevice.CreateForAdapter(HardwareDeviceType.Vulkan, Adapter(vendor))
             : null;
         HardwareFramePool? imports = null;
+        using VulkanDmaBufExporter? exporter =
+            exported && OperatingSystem.IsLinux() ? new VulkanDmaBufExporter() : null;
         List<string> hardware = [];
         using (MediaReader reader = MediaReader.Open(path))
         using (
@@ -1436,8 +1464,19 @@ public sealed class HardwareCodecTests
                 if (consumer is not null && OperatingSystem.IsLinux())
                 {
                     using Frame drm = new();
-                    drm.PixelFormat = PixelFormat.DrmPrime;
-                    decoded.MapTo(drm, HardwareMapAccess.Read);
+                    if (exporter is not null)
+                    {
+                        Assert.IsTrue(
+                            exporter.Export(decoded, drm),
+                            "The exporter declined the picture."
+                        );
+                    }
+                    else
+                    {
+                        drm.PixelFormat = PixelFormat.DrmPrime;
+                        decoded.MapTo(drm, HardwareMapAccess.Read);
+                    }
+
                     DrmPrimeImage image = HardwareTests.SingleLayer(drm);
                     Assert.AreEqual(LinearModifier, image.Objects[0].Modifier);
                     imports ??= HardwareFramePool.Create(

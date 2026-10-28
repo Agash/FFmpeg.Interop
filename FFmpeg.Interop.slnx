@@ -5,6 +5,7 @@
     </Folder>
     <Folder Name="/src/">
         <Project Path="src/FFmpeg.Interop/FFmpeg.Interop.csproj" />
+        <Project Path="src/FFmpeg.Interop.Native/FFmpeg.Interop.Native.csproj" />
     </Folder>
     <Folder Name="/tests/">
         <Project Path="tests/FFmpeg.Interop.Tests/FFmpeg.Interop.Tests.csproj" />

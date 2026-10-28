@@ -3548,6 +3548,11 @@ FFmpeg.Interop.Native.VkDrmFormatModifierPropertiesListEXT.drmFormatModifierCoun
 FFmpeg.Interop.Native.VkDrmFormatModifierPropertiesListEXT.pDrmFormatModifierProperties -> FFmpeg.Interop.Native.VkDrmFormatModifierPropertiesEXT*
 FFmpeg.Interop.Native.VkDrmFormatModifierPropertiesListEXT.pNext -> void*
 FFmpeg.Interop.Native.VkDrmFormatModifierPropertiesListEXT.sType -> FFmpeg.Interop.Native.VkStructureType
+FFmpeg.Interop.Native.VkExportSemaphoreCreateInfo
+FFmpeg.Interop.Native.VkExportSemaphoreCreateInfo.VkExportSemaphoreCreateInfo() -> void
+FFmpeg.Interop.Native.VkExportSemaphoreCreateInfo.handleTypes -> uint
+FFmpeg.Interop.Native.VkExportSemaphoreCreateInfo.pNext -> void*
+FFmpeg.Interop.Native.VkExportSemaphoreCreateInfo.sType -> FFmpeg.Interop.Native.VkStructureType
 FFmpeg.Interop.Native.VkExtent3D
 FFmpeg.Interop.Native.VkExtent3D.VkExtent3D() -> void
 FFmpeg.Interop.Native.VkExtent3D.depth -> uint
@@ -4114,6 +4119,11 @@ FFmpeg.Interop.Native.VkImageDrmFormatModifierListCreateInfoEXT.drmFormatModifie
 FFmpeg.Interop.Native.VkImageDrmFormatModifierListCreateInfoEXT.pDrmFormatModifiers -> ulong*
 FFmpeg.Interop.Native.VkImageDrmFormatModifierListCreateInfoEXT.pNext -> void*
 FFmpeg.Interop.Native.VkImageDrmFormatModifierListCreateInfoEXT.sType -> FFmpeg.Interop.Native.VkStructureType
+FFmpeg.Interop.Native.VkImageDrmFormatModifierPropertiesEXT
+FFmpeg.Interop.Native.VkImageDrmFormatModifierPropertiesEXT.VkImageDrmFormatModifierPropertiesEXT() -> void
+FFmpeg.Interop.Native.VkImageDrmFormatModifierPropertiesEXT.drmFormatModifier -> ulong
+FFmpeg.Interop.Native.VkImageDrmFormatModifierPropertiesEXT.pNext -> void*
+FFmpeg.Interop.Native.VkImageDrmFormatModifierPropertiesEXT.sType -> FFmpeg.Interop.Native.VkStructureType
 FFmpeg.Interop.Native.VkImageFormatProperties
 FFmpeg.Interop.Native.VkImageFormatProperties.VkImageFormatProperties() -> void
 FFmpeg.Interop.Native.VkImageFormatProperties.maxArrayLayers -> uint
@@ -4187,6 +4197,11 @@ FFmpeg.Interop.Native.VkImageMemoryRequirementsInfo2.VkImageMemoryRequirementsIn
 FFmpeg.Interop.Native.VkImageMemoryRequirementsInfo2.image -> void*
 FFmpeg.Interop.Native.VkImageMemoryRequirementsInfo2.pNext -> void*
 FFmpeg.Interop.Native.VkImageMemoryRequirementsInfo2.sType -> FFmpeg.Interop.Native.VkStructureType
+FFmpeg.Interop.Native.VkImageSubresource
+FFmpeg.Interop.Native.VkImageSubresource.VkImageSubresource() -> void
+FFmpeg.Interop.Native.VkImageSubresource.arrayLayer -> uint
+FFmpeg.Interop.Native.VkImageSubresource.aspectMask -> uint
+FFmpeg.Interop.Native.VkImageSubresource.mipLevel -> uint
 FFmpeg.Interop.Native.VkImageSubresourceLayers
 FFmpeg.Interop.Native.VkImageSubresourceLayers.VkImageSubresourceLayers() -> void
 FFmpeg.Interop.Native.VkImageSubresourceLayers.aspectMask -> uint
@@ -4270,6 +4285,12 @@ FFmpeg.Interop.Native.VkMemoryFdPropertiesKHR.VkMemoryFdPropertiesKHR() -> void
 FFmpeg.Interop.Native.VkMemoryFdPropertiesKHR.memoryTypeBits -> uint
 FFmpeg.Interop.Native.VkMemoryFdPropertiesKHR.pNext -> void*
 FFmpeg.Interop.Native.VkMemoryFdPropertiesKHR.sType -> FFmpeg.Interop.Native.VkStructureType
+FFmpeg.Interop.Native.VkMemoryGetFdInfoKHR
+FFmpeg.Interop.Native.VkMemoryGetFdInfoKHR.VkMemoryGetFdInfoKHR() -> void
+FFmpeg.Interop.Native.VkMemoryGetFdInfoKHR.handleType -> FFmpeg.Interop.Native.VkExternalMemoryHandleTypeFlagBits
+FFmpeg.Interop.Native.VkMemoryGetFdInfoKHR.memory -> void*
+FFmpeg.Interop.Native.VkMemoryGetFdInfoKHR.pNext -> void*
+FFmpeg.Interop.Native.VkMemoryGetFdInfoKHR.sType -> FFmpeg.Interop.Native.VkStructureType
 FFmpeg.Interop.Native.VkMemoryPropertyFlagBits
 FFmpeg.Interop.Native.VkMemoryPropertyFlagBits.VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD = 64 -> FFmpeg.Interop.Native.VkMemoryPropertyFlagBits
 FFmpeg.Interop.Native.VkMemoryPropertyFlagBits.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT = 1 -> FFmpeg.Interop.Native.VkMemoryPropertyFlagBits
@@ -4684,6 +4705,12 @@ FFmpeg.Interop.Native.VkSemaphoreCreateInfo.VkSemaphoreCreateInfo() -> void
 FFmpeg.Interop.Native.VkSemaphoreCreateInfo.flags -> uint
 FFmpeg.Interop.Native.VkSemaphoreCreateInfo.pNext -> void*
 FFmpeg.Interop.Native.VkSemaphoreCreateInfo.sType -> FFmpeg.Interop.Native.VkStructureType
+FFmpeg.Interop.Native.VkSemaphoreGetFdInfoKHR
+FFmpeg.Interop.Native.VkSemaphoreGetFdInfoKHR.VkSemaphoreGetFdInfoKHR() -> void
+FFmpeg.Interop.Native.VkSemaphoreGetFdInfoKHR.handleType -> FFmpeg.Interop.Native.VkExternalSemaphoreHandleTypeFlagBits
+FFmpeg.Interop.Native.VkSemaphoreGetFdInfoKHR.pNext -> void*
+FFmpeg.Interop.Native.VkSemaphoreGetFdInfoKHR.sType -> FFmpeg.Interop.Native.VkStructureType
+FFmpeg.Interop.Native.VkSemaphoreGetFdInfoKHR.semaphore -> void*
 FFmpeg.Interop.Native.VkSemaphoreImportFlagBits
 FFmpeg.Interop.Native.VkSemaphoreImportFlagBits.VK_SEMAPHORE_IMPORT_FLAG_BITS_MAX_ENUM = 2147483647 -> FFmpeg.Interop.Native.VkSemaphoreImportFlagBits
 FFmpeg.Interop.Native.VkSemaphoreImportFlagBits.VK_SEMAPHORE_IMPORT_TEMPORARY_BIT = 1 -> FFmpeg.Interop.Native.VkSemaphoreImportFlagBits
@@ -6460,6 +6487,11 @@ FFmpeg.Interop.VulkanDevice.PhysicalDevice.get -> nint
 FFmpeg.Interop.VulkanDevice.PhysicalDevice.init -> void
 FFmpeg.Interop.VulkanDevice.VulkanDevice() -> void
 FFmpeg.Interop.VulkanDevice.VulkanDevice(nint Instance, nint PhysicalDevice, nint Device) -> void
+FFmpeg.Interop.VulkanDmaBufExporter
+FFmpeg.Interop.VulkanDmaBufExporter.Dispose() -> void
+FFmpeg.Interop.VulkanDmaBufExporter.Export(FFmpeg.Interop.Frame! source, FFmpeg.Interop.Frame! destination) -> bool
+FFmpeg.Interop.VulkanDmaBufExporter.Flush() -> void
+FFmpeg.Interop.VulkanDmaBufExporter.VulkanDmaBufExporter() -> void
 FFmpeg.Interop.VulkanDmaBufImporter
 FFmpeg.Interop.VulkanDmaBufImporter.Acquire(FFmpeg.Interop.Frame! frame, FFmpeg.Interop.DrmSyncPoint? ready = null) -> void
 FFmpeg.Interop.VulkanDmaBufImporter.Dispose() -> void

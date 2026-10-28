@@ -123,6 +123,31 @@ public static unsafe class FFmpegLogging
                 s_default = FFmpegLibraries.GetExport("avutil", "av_log_default_callback");
                 av_log_set_callback(&Log);
                 s_installed = true;
+
+                // FFmpeg's and its libraries' threads outlive the runtime when the process exits (a codec
+                // thread, a driver's teardown at exit), and a message then would call into managed code that
+                // is gone: FFmpeg gets its own callback back first. Likewise when this assembly's load
+                // context unloads.
+                AppDomain.CurrentDomain.ProcessExit += static (_, _) => Uninstall();
+                System
+                    .Runtime.Loader.AssemblyLoadContext.GetLoadContext(
+                        typeof(FFmpegLogging).Assembly
+                    )!
+                    .Unloading += static _ => Uninstall();
+            }
+        }
+    }
+
+    private static void Uninstall()
+    {
+        lock (s_gate)
+        {
+            if (s_installed)
+            {
+                av_log_set_callback(
+                    (delegate* unmanaged[Cdecl]<void*, int, sbyte*, void*, void>)s_default
+                );
+                s_installed = false;
             }
         }
     }
