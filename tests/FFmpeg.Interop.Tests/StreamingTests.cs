@@ -370,12 +370,16 @@ public sealed class StreamingTests
             using Utf8String message = new("a decoder's per-frame note\n");
             void* context = decoder.NativePointer;
 
-            // Without arguments the format never reads the argument list.
-            LibAVUtil.av_vlog(context, LibAVUtil.AV_LOG_DEBUG, message, null);
+            // The format has no conversions, so the argument list is never read, but it must exist:
+            // AArch64's va_list is a 32-byte structure av_vlog copies first. Zeroed, it is a valid empty
+            // list on every ABI here (that structure, x86-64's one-element array, Windows' pointer).
+            byte* noArguments = stackalloc byte[32];
+            new Span<byte>(noArguments, 32).Clear();
+            LibAVUtil.av_vlog(context, LibAVUtil.AV_LOG_DEBUG, message, noArguments);
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 1000; i++)
             {
-                LibAVUtil.av_vlog(context, LibAVUtil.AV_LOG_DEBUG, message, null);
+                LibAVUtil.av_vlog(context, LibAVUtil.AV_LOG_DEBUG, message, noArguments);
             }
 
             Assert.AreEqual(0, GC.GetAllocatedBytesForCurrentThread() - before);
