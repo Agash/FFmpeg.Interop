@@ -1466,7 +1466,10 @@ public sealed class HardwareCodecTests
                     using Frame drm = new();
                     if (exporter is not null)
                     {
-                        Assert.IsTrue(exporter.Export(decoded, drm), "The exporter declined the picture.");
+                        Assert.IsTrue(
+                            exporter.Export(decoded, drm),
+                            "The exporter declined the picture."
+                        );
                     }
                     else
                     {
