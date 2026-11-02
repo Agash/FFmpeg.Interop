@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Installs what eng/build-ffmpeg.sh needs on AlmaLinux 8, the image the Linux libraries are built in:
-# glibc 2.28, so they load on distributions and SBC images far older than the build machine. The CI job
-# runs it in that image; locally:
+# Installs what eng/build-ffmpeg.sh needs on Ubuntu 24.04, the image the Linux libraries are built in:
+# glibc 2.39 and libva 2.20, which set the oldest systems they load on. The CI job runs it in that image;
+# locally:
 #
-#   docker run --rm -v "$PWD:/src" -w /src almalinux:8 bash -c \
-#     'eng/linux-build-image.sh && source /opt/rh/gcc-toolset-13/enable && eng/build-ffmpeg.sh'
+#   docker run --rm -v "$PWD:/src" -w /src ubuntu:24.04 bash -c \
+#     'eng/linux-build-image.sh && eng/build-ffmpeg.sh'
 set -euo pipefail
-dnf install -y -q dnf-plugins-core epel-release
-dnf config-manager --set-enabled powertools
-# GCC 13 from the toolset, still linking against the system's glibc 2.28; meson needs a newer Python
-# than the image's 3.6.
-dnf install -y -q gcc-toolset-13-gcc gcc-toolset-13-gcc-c++ make cmake git tar xz bzip2 nasm patchelf perl-core \
-  pkgconf-pkg-config python3.11 python3.11-pip binutils diffutils which autoconf automake libtool
-python3.11 -m pip install -q meson ninja
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq --no-install-recommends ca-certificates curl gcc-14 g++-14 make cmake git tar xz-utils \
+  bzip2 nasm patchelf perl pkg-config python3 python3-venv binutils diffutils autoconf automake libtool
+update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-14 100
+update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-14 100
+update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
+update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
+python3 -m venv /opt/build-tools
+/opt/build-tools/bin/pip install -q meson ninja
+ln -sf /opt/build-tools/bin/meson /opt/build-tools/bin/ninja /usr/local/bin/

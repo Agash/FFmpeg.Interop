@@ -12,9 +12,8 @@
 # time. TLS is Windows' own Schannel there and OpenSSL elsewhere. The result is
 # LGPL 2.1, except linux-arm64, which Rockchip's MPP makes LGPL 3: no GPL or non-free component is enabled.
 #
-# Linux builds are meant for an old glibc (the CI builds in AlmaLinux 8, glibc 2.28, so the libraries
-# load on distributions and SBC images far older than the runner) with current kernel interfaces: the
-# DMA-BUF header comes from Linux 6.12, so FFmpeg's DMA-BUF synchronisation is compiled in. Windows
+# Linux builds are meant for the current LTS generation (the CI builds in Ubuntu 24.04, glibc 2.39)
+# with current kernel interfaces: the DMA-BUF header comes from Linux 6.12, so FFmpeg's DMA-BUF synchronisation is compiled in. Windows
 # builds are cross-compiled on Linux with llvm-mingw against the UCRT. macOS builds use Xcode's clang,
 # for macOS 14 and later, either architecture from either.
 #

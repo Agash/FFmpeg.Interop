@@ -8,7 +8,7 @@ Built in CI from pinned, unmodified upstream sources (`eng/build-ffmpeg.sh`, `en
 
 - **Windows**: D3D11VA, D3D12VA, DXVA2, Media Foundation, NVENC/NVDEC, AMF, Vulkan, and QSV on x64.
 - **Linux**: VA-API with DRM displays, Vulkan, NVENC/NVDEC, AMF, V4L2 M2M, QSV on x64, and Rockchip MPP on
-  arm64; FFmpeg's DMA-BUF synchronisation compiled in; glibc 2.28 and later.
+  arm64; FFmpeg's DMA-BUF synchronisation compiled in; glibc 2.39 and libva 2.20 or later.
 - **macOS**: VideoToolbox and AudioToolbox, AVFoundation capture, the VideoToolbox and Metal filters,
   macOS 14 and later.
 - **Software**: OpenH264, SVT-AV1, libaom, dav1d, libvpx, kvazaar, Opus, LAME, zlib (PNG).

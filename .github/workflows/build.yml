@@ -25,16 +25,16 @@ jobs:
   native:
     name: FFmpeg (${{ matrix.rid }})
     runs-on: ${{ matrix.os }}
-    # Linux builds in AlmaLinux 8 (glibc 2.28, the manylinux_2_28 baseline), so the libraries load on
-    # distributions and SBC images far older than the runner's own; eng/build-ffmpeg.sh brings current
-    # kernel interfaces. Windows cross-compiles with llvm-mingw on the runner itself.
+    # Linux builds in Ubuntu 24.04, whose glibc 2.39 and libva 2.20 are the oldest the libraries load on;
+    # eng/build-ffmpeg.sh brings current kernel interfaces. Windows cross-compiles with llvm-mingw on the
+    # runner itself.
     container: ${{ matrix.container }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-26.04, rid: linux-x64, container: "almalinux:8", image: linux }
-          - { os: ubuntu-26.04-arm, rid: linux-arm64, container: "almalinux:8", image: linux }
+          - { os: ubuntu-26.04, rid: linux-x64, container: "ubuntu:24.04", image: linux }
+          - { os: ubuntu-26.04-arm, rid: linux-arm64, container: "ubuntu:24.04", image: linux }
           - { os: ubuntu-26.04, rid: win-x64, image: windows }
           - { os: ubuntu-26.04, rid: win-arm64, image: windows }
           - { os: xcode-27, rid: osx-arm64, image: macos }
@@ -43,7 +43,7 @@ jobs:
       - name: Install git (Linux image)
         if: matrix.container
         run: |
-          dnf install -y -q git
+          apt-get update -qq && apt-get install -y -qq --no-install-recommends git ca-certificates
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@v7
@@ -54,7 +54,7 @@ jobs:
         with:
           path: artifacts/native/${{ matrix.rid }}
           # Everything a build is made from: an unchanged set takes the finished libraries from here.
-          key: ffmpeg-${{ matrix.rid }}-${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/check-ffmpeg.sh', 'eng/*-build-image.sh') }}
+          key: ffmpeg-${{ matrix.rid }}-${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/linux-build-image.sh', 'eng/check-ffmpeg.sh', 'eng/*-build-image.sh') }}
 
       - name: Install the build image's tools
         if: steps.built.outputs.cache-hit != 'true'
@@ -76,13 +76,13 @@ jobs:
             artifacts/obj/ffmpeg/host
             artifacts/obj/ffmpeg/${{ matrix.rid }}/prefix
             artifacts/obj/ffmpeg/${{ matrix.rid }}/*.done
-          key: ffmpeg-deps-${{ matrix.rid }}-${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/check-ffmpeg.sh', 'eng/*-build-image.sh') }}
+          key: ffmpeg-deps-${{ matrix.rid }}-${{ hashFiles('eng/native-inputs.json', 'generate/inputs.json', 'eng/build-ffmpeg.sh', 'eng/linux-build-image.sh', 'eng/check-ffmpeg.sh', 'eng/*-build-image.sh') }}
 
       - name: Build FFmpeg
         if: steps.built.outputs.cache-hit != 'true'
         run: |
           case "${{ matrix.image }}" in
-            linux) source /opt/rh/gcc-toolset-13/enable; eng/build-ffmpeg.sh ${{ matrix.rid }} ;;
+            linux) eng/build-ffmpeg.sh ${{ matrix.rid }} ;;
             windows) eng/build-ffmpeg.sh ${{ matrix.rid }} ;;
             # Homebrew's bash: the script uses what macOS's own 3.2 lacks.
             macos) "$(brew --prefix)/bin/bash" eng/build-ffmpeg.sh ${{ matrix.rid }} ;;
