@@ -64,7 +64,7 @@ download() {
   local pins=$1 name=$2 dir=$3 archive
   [[ -d "$dir" ]] && return
   archive="$sources/$name.archive"
-  curl -sfL --retry 4 -o "$archive" "$(input "$pins" "$name" url)"
+  curl -sfL --retry 4 --retry-all-errors -o "$archive" "$(input "$pins" "$name" url)"
   verify "$(input "$pins" "$name" sha256)" "$archive"
   mkdir -p "$dir.tmp"
   tar -xf "$archive" -C "$dir.tmp" --strip-components=1
@@ -198,7 +198,7 @@ if [[ $os == linux ]]; then
   # Linux's DMA-BUF uAPI, newer than the build image's kernel headers.
   dmabuf="$sources/dma-buf.h"
   if [[ ! -f "$dmabuf" ]]; then
-    curl -sfL --retry 4 -o "$dmabuf" "$(input "$native" linuxUapiDmaBuf url)"
+    curl -sfL --retry 4 --retry-all-errors -o "$dmabuf" "$(input "$native" linuxUapiDmaBuf url)"
     verify "$(input "$native" linuxUapiDmaBuf sha256)" "$dmabuf"
   fi
   mkdir -p "$prefix/include/linux"
