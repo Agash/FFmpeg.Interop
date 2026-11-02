@@ -75,6 +75,11 @@ case "$rid" in
     # fails, leaving a VA-API that finds no display.
     grep -q "NEEDED.*libva-drm.so.2" <<<"$(objdump -p "$dir"/lib/libavutil.so.*.*)" \
       || { echo "VA-API without DRM displays: libavutil does not use libva-drm" >&2; failed=1; }
+    # Built against a libva older than the system's: a call of libva 2.21 fails the load on 2.20.
+    if nm -D "$dir"/lib/libavutil.so.*.* | grep -q " U vaMapBuffer2"; then
+      echo "libavutil needs libva 2.21, newer than the floor of 2.20" >&2
+      failed=1
+    fi
     # FFmpeg's DMA-BUF synchronisation (DMA_BUF_IOCTL_EXPORT_SYNC_FILE), absent when built against
     # kernel headers older than Linux 6.0.
     grep -q "Failed to retrieve implicit DRM sync file" "$dir"/lib/libavutil.so.* \

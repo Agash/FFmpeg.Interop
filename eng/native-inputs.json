@@ -34,6 +34,11 @@
     "url": "https://codeload.github.com/KhronosGroup/glslang/tar.gz/refs/tags/16.6.0",
     "sha256": "9c09b901149c729df745057dafa815278aaa101b84d2b6e14f16a42de52f97f2"
   },
+  "libva": {
+    "version": "2.20.0",
+    "url": "https://github.com/intel/libva/archive/e4adcaf3df2c5ad0f021c682ebc2ea1493a326e6.tar.gz",
+    "sha256": "c436ec0f495807e7cceeb2fa7386e9b337ae428a83ba25f732931acd82fa5af6"
+  },
   "libdrm": {
     "version": "2.4.134",
     "url": "https://dri.freedesktop.org/libdrm/libdrm-2.4.134.tar.xz",

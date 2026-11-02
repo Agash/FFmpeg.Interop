@@ -207,7 +207,10 @@ if [[ $os == linux ]]; then
   # libdrm and libva are linked against shared: at run time the system's copies serve, with its drivers.
   meson_build libdrm "$native" -Ddefault_library=shared -Dtests=false -Dman-pages=disabled -Dvalgrind=disabled \
     -Dcairo-tests=disabled -Damdgpu=enabled -Dradeon=disabled -Dnouveau=disabled -Dintel=disabled -Dvmwgfx=disabled
-  meson_build libva "$generator" -Ddefault_library=shared -Denable_docs=false -Dwith_x11=no -Dwith_glx=no \
+  # FFmpeg picks libva calls by the headers it compiles against, so these headers set the oldest system
+  # libva the libraries load on: 2.20, Ubuntu 24.04's, which has AV1 encoding. Newer ones add only
+  # vaMapBuffer2, for mapping surfaces to the CPU, which the GPU paths do not do.
+  meson_build libva "$native" -Ddefault_library=shared -Denable_docs=false -Dwith_x11=no -Dwith_glx=no \
     -Dwith_wayland=no -Ddisable_drm=false
 fi
 
