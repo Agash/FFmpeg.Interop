@@ -52,9 +52,9 @@ input() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.ar
 generator="$root/generate/inputs.json"
 native="$root/eng/native-inputs.json"
 
-# download <file> <url>: retries every failure, TLS ones included, which curl's own --retry leaves out
+# fetch_url <file> <url>: retries every failure, TLS ones included, which curl's own --retry leaves out
 # and whose --retry-all-errors the Linux build image's curl predates.
-download() {
+fetch_url() {
   local attempt
   for attempt in 1 2 3 4 5; do
     curl -sfL -o "$1" "$2" && return 0
@@ -76,7 +76,7 @@ download() {
   local pins=$1 name=$2 dir=$3 archive
   [[ -d "$dir" ]] && return
   archive="$sources/$name.archive"
-  download "$archive" "$(input "$pins" "$name" url)"
+  fetch_url "$archive" "$(input "$pins" "$name" url)"
   verify "$(input "$pins" "$name" sha256)" "$archive"
   mkdir -p "$dir.tmp"
   tar -xf "$archive" -C "$dir.tmp" --strip-components=1
@@ -210,7 +210,7 @@ if [[ $os == linux ]]; then
   # Linux's DMA-BUF uAPI, newer than the build image's kernel headers.
   dmabuf="$sources/dma-buf.h"
   if [[ ! -f "$dmabuf" ]]; then
-    download "$dmabuf" "$(input "$native" linuxUapiDmaBuf url)"
+    fetch_url "$dmabuf" "$(input "$native" linuxUapiDmaBuf url)"
     verify "$(input "$native" linuxUapiDmaBuf sha256)" "$dmabuf"
   fi
   mkdir -p "$prefix/include/linux"
