@@ -25,9 +25,9 @@
     "sha256": "4de3e2faf1e8307fb282e4a43f443191810f6a6b0a484fffa7995ba1c814c6ec"
   },
   "svtav1": {
-    "version": "4.2.0-151-g5ed9ffbcb",
-    "url": "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/5ed9ffbcb/SVT-AV1-5ed9ffbcb.tar.gz",
-    "sha256": "003f5d6e78a657e1d50172937fa49bb672ad4645742816e65e22574a6343c66d"
+    "version": "4.3.0",
+    "url": "https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/e3d63405f/SVT-AV1-e3d63405f.tar.gz",
+    "sha256": "c074e09183db8af342ae5629e091dc072c88d1511dd6da0ff164f0c7afba54fb"
   },
   "glslang": {
     "version": "16.6.0",
